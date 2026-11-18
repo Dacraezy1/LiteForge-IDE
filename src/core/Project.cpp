@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QTextStream>
+#include <QThread>
 
 namespace liteforge::core {
 
@@ -89,13 +90,49 @@ QString Project::buildTypeString() const {
 void Project::refreshProjectFiles() {
     if (m_rootPath.isEmpty()) {
         m_projectFiles.clear();
+        emit filesRefreshed();
         return;
     }
 
-    m_projectFiles = FileUtils::findFiles(m_rootPath, QStringList(), 
-        QStringList{".git", "build", "node_modules", ".cache", ".idea", ".vscode", "target", "bin", "obj"});
+    if (m_isScanning) return;
+    m_isScanning = true;
+    emit scanningChanged(true);
 
-    emit filesRefreshed();
+    QString root = m_rootPath;
+    QStringList customIgnored = m_customIgnoredDirs;
+
+    QThread* thread = QThread::create([this, root, customIgnored]() {
+        QStringList defaultIgnore{".git", "build", "node_modules", ".cache", ".idea", ".vscode", "target", "bin", "obj"};
+        defaultIgnore.append(customIgnored);
+
+        QStringList gitIgnoreRules;
+        QString gitIgnorePath = root + "/.gitignore";
+        if (QFile::exists(gitIgnorePath)) {
+            gitIgnoreRules = FileUtils::parseGitIgnore(gitIgnorePath);
+        }
+
+        QStringList scanned = FileUtils::findFiles(root, QStringList(), defaultIgnore, 25000);
+
+        // Filter files using .gitignore rules
+        QStringList finalFiles;
+        finalFiles.reserve(scanned.size());
+        for (const QString& f : scanned) {
+            QString rel = FileUtils::relativePath(root, f);
+            if (!FileUtils::isIgnoredByRule(rel, gitIgnoreRules)) {
+                finalFiles.append(f);
+            }
+        }
+
+        QMetaObject::invokeMethod(this, [this, finalFiles]() {
+            m_projectFiles = finalFiles;
+            m_isScanning = false;
+            emit scanningChanged(false);
+            emit filesRefreshed();
+        }, Qt::QueuedConnection);
+    });
+
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
 }
 
 } // namespace liteforge::core

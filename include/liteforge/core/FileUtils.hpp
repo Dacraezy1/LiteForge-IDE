@@ -14,7 +14,8 @@ struct FuzzyMatchResult {
 
 class FileUtils {
 public:
-    // Sublime-style fuzzy match scoring
+    // Sublime-style fuzzy match scoring:
+    // Higher score means better match (prefix matches, word boundary matches, consecutive matches get bonus)
     static FuzzyMatchResult fuzzyMatch(const QString& pattern, const QString& text);
 
     static QString formatFileSize(qint64 bytes);
@@ -31,6 +32,9 @@ public:
                                  int maxFiles = 10000);
 
     static QString relativePath(const QString& rootDir, const QString& absolutePath);
+
+    static QStringList parseGitIgnore(const QString& gitIgnorePath);
+    static bool isIgnoredByRule(const QString& relPath, const QStringList& rules);
 };
 
 } // namespace liteforge::core

@@ -173,4 +173,44 @@ QString FileUtils::relativePath(const QString& rootDir, const QString& absoluteP
     return dir.relativeFilePath(absolutePath);
 }
 
+QStringList FileUtils::parseGitIgnore(const QString& gitIgnorePath) {
+    QStringList rules;
+    QFile file(gitIgnorePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return rules;
+    }
+
+    QTextStream in(&file);
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (line.isEmpty() || line.startsWith('#')) {
+            continue;
+        }
+        rules.append(line);
+    }
+    return rules;
+}
+
+bool FileUtils::isIgnoredByRule(const QString& relPath, const QStringList& rules) {
+    for (const QString& rule : rules) {
+        QString cleanRule = rule;
+        bool dirOnly = cleanRule.endsWith('/');
+        if (dirOnly) {
+            cleanRule.chop(1);
+        }
+
+        // Exact match
+        if (relPath == cleanRule || relPath.startsWith(cleanRule + "/")) {
+            return true;
+        }
+
+        // Wildcard match on file name or path segment
+        QFileInfo fi(relPath);
+        if (QDir::match(cleanRule, fi.fileName()) || QDir::match(cleanRule, relPath)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace liteforge::core

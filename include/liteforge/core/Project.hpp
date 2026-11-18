@@ -38,12 +38,17 @@ public:
     // Fast indexed file list for fuzzy finder
     QStringList projectFiles() const { return m_projectFiles; }
     void refreshProjectFiles();
+    bool isScanning() const { return m_isScanning; }
+
+    QStringList customIgnoredDirs() const { return m_customIgnoredDirs; }
+    void setCustomIgnoredDirs(const QStringList& dirs) { m_customIgnoredDirs = dirs; }
 
 signals:
     void projectOpened(const QString& rootPath);
     void projectClosed();
     void gitBranchChanged(const QString& branch);
     void filesRefreshed();
+    void scanningChanged(bool scanning);
 
 private:
     void detectBuildType();
@@ -52,6 +57,8 @@ private:
     QString m_gitBranch;
     ProjectBuildType m_buildType{ProjectBuildType::None};
     QStringList m_projectFiles;
+    QStringList m_customIgnoredDirs;
+    bool m_isScanning{false};
 };
 
 } // namespace liteforge::core
