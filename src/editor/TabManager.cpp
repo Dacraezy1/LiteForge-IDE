@@ -25,6 +25,9 @@ TabManager::TabManager(QWidget* parent)
 CodeEditor* TabManager::openFile(const QString& filePath) {
     int existingIdx = findTabIndexByPath(filePath);
     if (existingIdx != -1) {
+        if (existingIdx == m_previewTabIndex) {
+            promotePreviewTab(existingIdx);
+        }
         setCurrentIndex(existingIdx);
         return editorAt(existingIdx);
     }
@@ -44,13 +47,60 @@ CodeEditor* TabManager::openFile(const QString& filePath) {
     int idx = addTab(editor, doc->fileName());
     setCurrentIndex(idx);
 
-    connect(editor->document(), &QTextDocument::contentsChanged, this, [this, doc, idx]() {
+    connect(editor->document(), &QTextDocument::contentsChanged, this, [this, doc, editor]() {
         doc->setModified(true);
-        updateTabTitle(indexOf(dynamic_cast<QWidget*>(sender()->parent())));
+        int i = indexOf(editor);
+        if (i != -1) {
+            if (i == m_previewTabIndex) {
+                promotePreviewTab(i);
+            }
+            updateTabTitle(i);
+        }
     });
 
     emit fileOpened(filePath);
     return editor;
+}
+
+CodeEditor* TabManager::openFilePreview(const QString& filePath) {
+    int existingIdx = findTabIndexByPath(filePath);
+    if (existingIdx != -1) {
+        setCurrentIndex(existingIdx);
+        return editorAt(existingIdx);
+    }
+
+    // Reuse existing unmodified preview tab if present
+    if (m_previewTabIndex >= 0 && m_previewTabIndex < count()) {
+        CodeEditor* existing = editorAt(m_previewTabIndex);
+        if (existing && existing->documentModel() && !existing->documentModel()->isModified()) {
+            bool ok = false;
+            QString content = core::FileUtils::readFileUtf8(filePath, &ok);
+            if (ok) {
+                auto doc = std::make_shared<core::Document>(filePath);
+                existing->setPlainText(content);
+                existing->setDocumentModel(doc);
+                doc->setModified(false);
+                updateTabTitle(m_previewTabIndex);
+                setCurrentIndex(m_previewTabIndex);
+                emit fileOpened(filePath);
+                return existing;
+            }
+        }
+    }
+
+    CodeEditor* ed = openFile(filePath);
+    if (ed) {
+        m_previewTabIndex = indexOf(ed);
+        updateTabTitle(m_previewTabIndex);
+    }
+    return ed;
+}
+
+void TabManager::promotePreviewTab(int index) {
+    if (index == m_previewTabIndex) {
+        m_previewTabIndex = -1;
+        updateTabTitle(index);
+    }
 }
 
 CodeEditor* TabManager::newUntitledDocument() {
@@ -81,6 +131,8 @@ CodeEditor* TabManager::editorAt(int index) const {
 }
 
 bool TabManager::closeFile(int index) {
+    if (isTabPinned(index)) return false; // Pinned tabs cannot be closed without unpinning
+
     CodeEditor* editor = editorAt(index);
     if (!editor) return false;
 
@@ -100,31 +152,33 @@ bool TabManager::closeFile(int index) {
         }
     }
 
+    if (index == m_previewTabIndex) {
+        m_previewTabIndex = -1;
+    }
+    m_pinnedTabs.erase(index);
+
     removeTab(index);
-    delete editor;
+    editor->deleteLater();
 
     if (count() == 0) {
         emit allFilesClosed();
     }
+
     return true;
 }
 
-void TabManager::closeActiveTab() {
-    if (currentIndex() != -1) {
-        closeFile(currentIndex());
-    }
-}
-
 bool TabManager::closeAllFiles() {
-    while (count() > 0) {
-        if (!closeFile(0)) return false;
+    for (int i = count() - 1; i >= 0; --i) {
+        if (!isTabPinned(i)) {
+            if (!closeFile(i)) return false;
+        }
     }
     return true;
 }
 
 bool TabManager::closeOtherFiles(int index) {
     for (int i = count() - 1; i >= 0; --i) {
-        if (i != index) {
+        if (i != index && !isTabPinned(i)) {
             if (!closeFile(i)) return false;
         }
     }
@@ -146,47 +200,53 @@ bool TabManager::saveFileAt(int index) {
         return false;
     }
 
-    bool success = core::FileUtils::writeFileUtf8(doc->filePath(), editor->toPlainText());
-    if (success) {
+    bool ok = core::FileUtils::writeFileUtf8(doc->filePath(), editor->toPlainText());
+    if (ok) {
         doc->setModified(false);
         updateTabTitle(index);
+        return true;
     }
-    return success;
+    return false;
 }
 
 bool TabManager::saveAllFiles() {
-    bool allSuccess = true;
+    bool allSaved = true;
     for (int i = 0; i < count(); ++i) {
         if (!saveFileAt(i)) {
-            allSuccess = false;
+            allSaved = false;
         }
     }
-    return allSuccess;
+    return allSaved;
 }
 
-void TabManager::updateTabTitle(int index) {
-    CodeEditor* editor = editorAt(index);
-    if (!editor) return;
-
-    auto doc = editor->documentModel();
-    if (!doc) return;
-
-    QString title = doc->fileName();
-    if (doc->isModified()) {
-        title += " •";
+void TabManager::togglePinTab(int index) {
+    if (m_pinnedTabs.count(index)) {
+        m_pinnedTabs.erase(index);
+    } else {
+        m_pinnedTabs.insert(index);
+        if (index == m_previewTabIndex) {
+            m_previewTabIndex = -1;
+        }
     }
-    setTabText(index, title);
-    setTabToolTip(index, doc->filePath());
+    updateTabTitle(index);
 }
 
-int TabManager::findTabIndexByPath(const QString& filePath) const {
+bool TabManager::isTabPinned(int index) const {
+    return m_pinnedTabs.count(index) > 0;
+}
+
+void TabManager::applyTheme(const core::ThemeColors& theme) {
     for (int i = 0; i < count(); ++i) {
         CodeEditor* ed = editorAt(i);
-        if (ed && ed->documentModel() && ed->documentModel()->filePath() == filePath) {
-            return i;
-        }
+        if (ed) ed->applyTheme(theme);
     }
-    return -1;
+}
+
+void TabManager::updateFontSettings(const QString& family, int size) {
+    for (int i = 0; i < count(); ++i) {
+        CodeEditor* ed = editorAt(i);
+        if (ed) ed->updateFontSettings(family, size);
+    }
 }
 
 QStringList TabManager::openFilePaths() const {
@@ -200,22 +260,8 @@ QStringList TabManager::openFilePaths() const {
     return paths;
 }
 
-void TabManager::applyTheme(const core::ThemeColors& theme) {
-    for (int i = 0; i < count(); ++i) {
-        CodeEditor* ed = editorAt(i);
-        if (ed) {
-            ed->applyTheme(theme);
-        }
-    }
-}
-
-void TabManager::updateFontSettings(const QString& family, int size) {
-    for (int i = 0; i < count(); ++i) {
-        CodeEditor* ed = editorAt(i);
-        if (ed) {
-            ed->updateFontSettings(family, size);
-        }
-    }
+void TabManager::closeActiveTab() {
+    closeFile(currentIndex());
 }
 
 void TabManager::onTabCloseRequested(int index) {
@@ -226,30 +272,82 @@ void TabManager::onCurrentChanged(int index) {
     emit activeEditorChanged(editorAt(index));
 }
 
+void TabManager::onDocumentModified(int index) {
+    updateTabTitle(index);
+}
+
+void TabManager::updateTabTitle(int index) {
+    if (index < 0 || index >= count()) return;
+
+    CodeEditor* ed = editorAt(index);
+    if (!ed || !ed->documentModel()) return;
+
+    QString name = ed->documentModel()->fileName();
+    QString prefix;
+
+    if (isTabPinned(index)) {
+        prefix += "📌 ";
+    }
+    if (ed->documentModel()->isModified()) {
+        prefix += "● ";
+    }
+    if (index == m_previewTabIndex) {
+        name = "<i>" + name + "</i>";
+    }
+
+    setTabText(index, prefix + name);
+    setTabToolTip(index, ed->documentModel()->filePath());
+}
+
+int TabManager::findTabIndexByPath(const QString& filePath) const {
+    for (int i = 0; i < count(); ++i) {
+        CodeEditor* ed = editorAt(i);
+        if (ed && ed->documentModel() && ed->documentModel()->filePath() == filePath) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void TabManager::showContextMenu(const QPoint& pos) {
     int tabIndex = tabBar()->tabAt(pos);
     if (tabIndex == -1) return;
 
     QMenu menu(this);
-    QAction* closeAct = menu.addAction("Close");
-    QAction* closeOthersAct = menu.addAction("Close Others");
-    QAction* closeAllAct = menu.addAction("Close All");
-    menu.addSeparator();
-    QAction* copyPathAct = menu.addAction("Copy File Path");
+    bool pinned = isTabPinned(tabIndex);
 
-    QAction* selected = menu.exec(mapToGlobal(pos));
-    if (selected == closeAct) {
+    menu.addAction(pinned ? "Unpin Tab" : "Pin Tab", [this, tabIndex]() {
+        togglePinTab(tabIndex);
+    });
+
+    menu.addSeparator();
+
+    menu.addAction("Split Right (Vertical)", [this]() {
+        emit splitRequested(Qt::Horizontal);
+    });
+
+    menu.addAction("Split Down (Horizontal)", [this]() {
+        emit splitRequested(Qt::Vertical);
+    });
+
+    menu.addSeparator();
+
+    menu.addAction("Close", [this, tabIndex]() {
         closeFile(tabIndex);
-    } else if (selected == closeOthersAct) {
+    });
+
+    menu.addAction("Close Others", [this, tabIndex]() {
         closeOtherFiles(tabIndex);
-    } else if (selected == closeAllAct) {
-        closeAllFiles();
-    } else if (selected == copyPathAct) {
+    });
+
+    menu.addAction("Copy Full Path", [this, tabIndex]() {
         CodeEditor* ed = editorAt(tabIndex);
         if (ed && ed->documentModel()) {
             QApplication::clipboard()->setText(ed->documentModel()->filePath());
         }
-    }
+    });
+
+    menu.exec(mapToGlobal(pos));
 }
 
 } // namespace liteforge::editor

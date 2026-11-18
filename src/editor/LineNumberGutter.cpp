@@ -15,4 +15,8 @@ void LineNumberGutter::paintEvent(QPaintEvent* event) {
     m_editor->lineNumberGutterPaintEvent(event);
 }
 
+void LineNumberGutter::mousePressEvent(QMouseEvent* event) {
+    m_editor->gutterMousePressEvent(event);
+}
+
 } // namespace liteforge::editor
