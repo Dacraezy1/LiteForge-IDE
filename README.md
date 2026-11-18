@@ -102,12 +102,12 @@ The easiest way to run LiteForge on any modern Linux distribution without instal
 ```bash
 # Download for your architecture from GitHub Releases:
 # For x86_64:
-curl -LO https://github.com/Dacraezy1/LiteForge-IDE/releases/download/v1.0.0/LiteForge-x86_64.AppImage
+curl -LO https://github.com/Dacraezy1/LiteForge-IDE/releases/latest/download/LiteForge-x86_64.AppImage
 chmod +x LiteForge-x86_64.AppImage
 ./LiteForge-x86_64.AppImage
 
 # For aarch64 / ARM64:
-curl -LO https://github.com/Dacraezy1/LiteForge-IDE/releases/download/v1.0.0/LiteForge-aarch64.AppImage
+curl -LO https://github.com/Dacraezy1/LiteForge-IDE/releases/latest/download/LiteForge-aarch64.AppImage
 chmod +x LiteForge-aarch64.AppImage
 ./LiteForge-aarch64.AppImage
 ```
@@ -120,12 +120,12 @@ Download and install the native `.deb` package:
 
 ```bash
 # For x86_64 (amd64):
-wget https://github.com/Dacraezy1/LiteForge-IDE/releases/download/v1.0.0/liteforge_1.0.0_amd64.deb
-sudo apt install ./liteforge_1.0.0_amd64.deb
+wget https://github.com/Dacraezy1/LiteForge-IDE/releases/latest/download/liteforge_1.1.0_amd64.deb
+sudo apt install ./liteforge_1.1.0_amd64.deb
 
 # For aarch64 (arm64):
-wget https://github.com/Dacraezy1/LiteForge-IDE/releases/download/v1.0.0/liteforge_1.0.0_arm64.deb
-sudo apt install ./liteforge_1.0.0_arm64.deb
+wget https://github.com/Dacraezy1/LiteForge-IDE/releases/latest/download/liteforge_1.1.0_arm64.deb
+sudo apt install ./liteforge_1.1.0_arm64.deb
 ```
 
 ---
@@ -136,13 +136,13 @@ Install the native RPM package via DNF or Zypper:
 
 ```bash
 # Fedora / RHEL / Rocky (x86_64):
-sudo dnf install https://github.com/Dacraezy1/LiteForge-IDE/releases/download/v1.0.0/liteforge-1.0.0-1.x86_64.rpm
+sudo dnf install https://github.com/Dacraezy1/LiteForge-IDE/releases/latest/download/liteforge-1.1.0-1.x86_64.rpm
 
 # Fedora / RHEL / Rocky (aarch64):
-sudo dnf install https://github.com/Dacraezy1/LiteForge-IDE/releases/download/v1.0.0/liteforge-1.0.0-1.aarch64.rpm
+sudo dnf install https://github.com/Dacraezy1/LiteForge-IDE/releases/latest/download/liteforge-1.1.0-1.aarch64.rpm
 
 # openSUSE:
-sudo zypper install https://github.com/Dacraezy1/LiteForge-IDE/releases/download/v1.0.0/liteforge-1.0.0-1.x86_64.rpm
+sudo zypper install https://github.com/Dacraezy1/LiteForge-IDE/releases/latest/download/liteforge-1.1.0-1.x86_64.rpm
 ```
 
 ---
@@ -153,7 +153,7 @@ For portable or rootless usage:
 
 ```bash
 # Extract and run:
-tar -xzf liteforge-1.0.0-linux-x86_64.tar.gz
+tar -xzf liteforge-1.1.0-Linux.tar.gz
 cd liteforge
 ./bin/liteforge
 ```
@@ -210,8 +210,8 @@ Add LiteForge to your local portage overlay:
 
 ```bash
 sudo mkdir -p /var/db/repos/localrepo/dev-util/liteforge
-sudo cp packaging/gentoo/liteforge-1.0.0.ebuild /var/db/repos/localrepo/dev-util/liteforge/
-ebuild /var/db/repos/localrepo/dev-util/liteforge/liteforge-1.0.0.ebuild manifest
+sudo cp packaging/gentoo/liteforge-1.1.0.ebuild /var/db/repos/localrepo/dev-util/liteforge/
+ebuild /var/db/repos/localrepo/dev-util/liteforge/liteforge-1.1.0.ebuild manifest
 sudo emerge --ask dev-util/liteforge
 ```
 

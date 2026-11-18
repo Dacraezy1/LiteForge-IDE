@@ -166,6 +166,8 @@ void BuildSystem::onReadyReadStderr() {
 }
 
 void BuildSystem::parseOutputLine(const QString& line) {
+    // Regex for standard compiler error/warning output:
+    // /path/to/file.cpp:12:34: error: message
     static QRegularExpression re(QStringLiteral(R"(([a-zA-Z0-9_\-\./]+):(\d+):(\d+):\s*(error|warning|note):\s*(.*))"));
     QRegularExpressionMatch match = re.match(line);
     if (match.hasMatch()) {

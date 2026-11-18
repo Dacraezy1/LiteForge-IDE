@@ -424,7 +424,7 @@ QString ThemeManager::generateStyleSheet() const {
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
             height: 0px;
         }
-        QScrollBar::horizontal {
+        QScrollBar:horizontal {
             border: none;
             background-color: transparent;
             height: 8px;

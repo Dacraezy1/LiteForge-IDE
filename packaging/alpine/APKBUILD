@@ -1,5 +1,5 @@
 pkgname=liteforge
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=0
 pkgdesc="Featherweight, zero-bloat native C++ IDE"
 url="https://github.com/Dacraezy1/LiteForge-IDE"

@@ -6,7 +6,7 @@
 
 stdenv.mkDerivation rec {
   pname = "liteforge";
-  version = "1.0.0";
+  version = "1.1.0";
 
   src = lib.cleanSource ../..;
 

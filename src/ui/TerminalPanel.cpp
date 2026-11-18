@@ -238,7 +238,7 @@ void TerminalPanel::switchToTerminalTab() {
 }
 
 void TerminalPanel::onTabCloseRequested(int index) {
-    if (index == 0) return;
+    if (index == 0) return; // Do not close Build Output
     QWidget* w = m_tabWidget->widget(index);
     m_tabWidget->removeTab(index);
     delete w;

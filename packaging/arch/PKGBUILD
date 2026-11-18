@@ -1,5 +1,5 @@
 pkgname=liteforge
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Featherweight, zero-bloat native C++ IDE"
 arch=('x86_64' 'aarch64')

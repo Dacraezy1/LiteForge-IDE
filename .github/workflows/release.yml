@@ -69,15 +69,9 @@ jobs:
       - name: Stage Artifacts
         run: |
           mkdir -p artifacts
-          for f in build/*.tar.gz; do
-            [ -f "$f" ] && cp -v "$f" "artifacts/liteforge-1.0.0-linux-${{ matrix.arch }}.tar.gz"
-          done
-          for f in build/*.deb; do
-            [ -f "$f" ] && cp -v "$f" "artifacts/liteforge_1.0.0_${{ matrix.deb_arch }}.deb"
-          done
-          for f in build/*.rpm; do
-            [ -f "$f" ] && cp -v "$f" "artifacts/liteforge-1.0.0-1.${{ matrix.rpm_arch }}.rpm"
-          done
+          cp -v build/*.tar.gz artifacts/ || true
+          cp -v build/*.deb artifacts/ || true
+          cp -v build/*.rpm artifacts/ || true
           cp -v *.AppImage artifacts/ || true
           cp -v LiteForge-*.tar.gz artifacts/ || true
           cd artifacts
@@ -94,6 +88,21 @@ jobs:
     needs: build-packages
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Determine Release Tag
+        id: release_info
+        run: |
+          VERSION=$(grep -m1 "VERSION" CMakeLists.txt | awk '{print $2}')
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="v${VERSION}"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -111,8 +120,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
-          name: "LiteForge ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }} - Featherweight Native C++ IDE"
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: "LiteForge ${{ steps.release_info.outputs.tag }} - Featherweight Native C++ IDE"
           files: dist/*
           generate_release_notes: true
           draft: false
