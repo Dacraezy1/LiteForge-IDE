@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-packages:
+    name: Build Packages (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+            deb_arch: amd64
+            rpm_arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+            deb_arch: arm64
+            rpm_arch: aarch64
+
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ qt6-base-dev libgl1-mesa-dev rpm file patchelf
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=20 \
+            -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Build Binary
+        run: |
+          cmake --build build --parallel $(nproc)
+
+      - name: Run Tests
+        run: |
+          ctest --test-dir build --output-on-failure
+
+      - name: Build Packages with CPack
+        run: |
+          cd build
+          cpack -G TGZ
+          cpack -G DEB
+          cpack -G RPM || true
+
+      - name: Build AppImage
+        run: |
+          bash packaging/appimage/build-appimage.sh ${{ matrix.arch }}
+
+      - name: Stage Artifacts
+        run: |
+          mkdir -p artifacts
+          cp -v build/*.tar.gz artifacts/ || true
+          cp -v build/*.deb artifacts/ || true
+          cp -v build/*.rpm artifacts/ || true
+          cp -v *.AppImage artifacts/ || true
+          cd artifacts
+          sha256sum * > SHA256SUMS-${{ matrix.arch }}.txt
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: liteforge-${{ matrix.arch }}
+          path: artifacts/*
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-files
+
+      - name: Flatten Files
+        run: |
+          mkdir -p dist
+          find release-files -type f -exec mv -v {} dist/ \;
+          cd dist
+          cat SHA256SUMS-*.txt > SHA256SUMS.txt
+          rm -f SHA256SUMS-*.txt
+          ls -la
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false

@@ -1,0 +1,31 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+bin/
+
+# IDE / Editor metadata
+.vscode/
+.idea/
+*.user
+*.user.*
+
+# Object and binary files
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# LiteForge local run artifacts
+config.json
+*.swp
+*~

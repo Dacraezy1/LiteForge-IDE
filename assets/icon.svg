@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b"/>
+      <stop offset="100%" stop-color="#0f0f10"/>
+    </linearGradient>
+    <linearGradient id="forgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="sparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Squircle Background -->
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="url(#bgGrad)" stroke="#27272a" stroke-width="6"/>
+
+  <!-- Anvil Base / Forge Body -->
+  <path d="M 120 220 L 392 220 C 420 220 430 240 400 256 L 360 280 C 340 292 330 310 330 330 L 340 370 L 172 370 L 182 330 C 182 310 172 292 152 280 L 112 256 C 82 240 92 220 120 220 Z" 
+        fill="url(#forgeGrad)" filter="url(#glow)"/>
+
+  <!-- Top Horn Accent -->
+  <path d="M 100 220 C 70 220 60 190 120 190 L 392 190 C 415 190 425 205 400 220 Z" 
+        fill="#60a5fa" opacity="0.9"/>
+
+  <!-- Lightning Bolt (Fast / Spark) -->
+  <polygon points="275,110 195,250 255,250 235,390 325,230 265,230" 
+           fill="url(#sparkGrad)" filter="url(#glow)"/>
+
+  <!-- Spark Accents -->
+  <circle cx="370" cy="160" r="12" fill="#34d399" filter="url(#glow)"/>
+  <circle cx="140" cy="150" r="8" fill="#38bdf8" filter="url(#glow)"/>
+  <circle cx="390" cy="320" r="7" fill="#38bdf8" filter="url(#glow)"/>
+</svg>

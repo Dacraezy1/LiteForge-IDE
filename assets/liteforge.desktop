@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=LiteForge IDE
+Comment=The featherweight, zero-bloat native C++ IDE
+Exec=liteforge %F
+Icon=liteforge
+Terminal=false
+Type=Application
+Categories=Development;IDE;TextEditor;
+MimeType=text/plain;text/x-c;text/x-c++;text/x-python;text/x-rust;application/json;text/markdown;
+StartupNotify=true
+StartupWMClass=LiteForge
