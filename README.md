@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/Dacraezy1/LiteForge-IDE/actions"><img src="https://img.shields.io/github/actions/workflow/status/Dacraezy1/LiteForge-IDE/ci.yml?branch=main&label=CI&style=flat-square" alt="CI Status"></a>
   <a href="https://github.com/Dacraezy1/LiteForge-IDE/releases"><img src="https://img.shields.io/github/v/release/Dacraezy1/LiteForge-IDE?style=flat-square&color=blue" alt="Latest Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue.svg?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/design-minimal%20%26%20unbloated-informational?style=flat-square" alt="Minimal & Unbloated">
   <img src="https://img.shields.io/badge/Startup-%3C40ms-success?style=flat-square" alt="Startup Time">
   <img src="https://img.shields.io/badge/Architectures-x86__64%20%7C%20aarch64-blueviolet?style=flat-square" alt="Supported Architectures">
@@ -350,4 +350,4 @@ sudo cmake --install build
 
 ## Contributing & License
 
-LiteForge is free and open-source software distributed under the terms of the [MIT License](LICENSE). Contributions, bug reports, and pull requests are welcome!
+LiteForge is free and open-source software distributed under the terms of the [GNU General Public License v3 (GPLv3)](LICENSE). Contributions, bug reports, and pull requests are welcome!

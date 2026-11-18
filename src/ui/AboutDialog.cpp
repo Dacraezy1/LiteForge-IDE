@@ -36,7 +36,7 @@ void AboutDialog::setupUi() {
         "• Integrated terminal, build runner & diagnostics\n"
         "• Subsequence fuzzy finder & command palette\n"
         "• Native Wayland & X11 acceleration\n\n"
-        "Open Source under the MIT License.", this
+        "Open Source under the GNU General Public License v3 (GPLv3).", this
     );
     descLabel->setWordWrap(true);
     descLabel->setStyleSheet("font-size: 12px; line-height: 1.5; color: #e4e4e7;");

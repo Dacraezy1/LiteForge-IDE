@@ -26,7 +26,7 @@ stdenv.mkDerivation rec {
   meta = with lib; {
     description = "Featherweight, zero-bloat native C++ IDE";
     homepage = "https://github.com/Dacraezy1/LiteForge-IDE";
-    license = licenses.mit;
+    license = licenses.gpl3Only;
     platforms = platforms.linux ++ platforms.darwin;
     mainProgram = "liteforge";
   };
