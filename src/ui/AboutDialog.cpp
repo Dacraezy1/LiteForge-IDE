@@ -30,7 +30,7 @@ void AboutDialog::setupUi() {
         "LiteForge is an ultra-fast, minimalist, and feature-rich code editor and IDE "
         "crafted entirely in modern C++20 and Qt6.\n\n"
         "• Startup Time: < 40ms (Instantaneous)\n"
-        "• Idle Memory: ~35 MB RAM\n"
+        "• Minimal Memory Footprint: Lean and unbloated native Qt6 architecture\n"
         "• Zero JavaScript/Node runtime overhead\n"
         "• High-performance multi-language syntax highlighting\n"
         "• Integrated terminal, build runner & diagnostics\n"
