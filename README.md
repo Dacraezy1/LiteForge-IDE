@@ -36,14 +36,42 @@ Modern code editors and IDEs have become notoriously resource-intensive:
 ## Features
 
 ### ⚡ Editor Engine
+- **Multiple Cursors & Select Next Occurrence**: Select and edit multiple occurrences simultaneously (`Ctrl+D`), column editing, and multi-caret synchronized typing.
+- **Split Editor Views**: Split view horizontally or vertically (`Ctrl+\`) to work on multiple files or different sections of the same file side-by-side.
+- **Code Folding**: Fold/unfold functions, loops, and blocks with gutter chevrons (`▼`/`▶`) or keyboard shortcuts (`Ctrl+Shift+[` / `Ctrl+Shift+]`).
+- **Minimap & Sticky Scroll**: High-performance overview canvas of document layout and sticky top header tracking the current enclosing scope.
+- **Tab Enhancements**: Pinned tabs (`📌`), temporary preview tabs (italics), dirty file indicators (`●`), and split menu actions.
 - **Bracket Matching & Auto-Closing**: Automatic pair closing and matching highlights for `()`, `[]`, `{}` and quotes.
 - **Smart Indentation**: Auto-indents on Return after code blocks (`{`, `:`); handles tab-to-spaces and shift-unindent.
 - **Visual Indent Guides**: Subtle dotted guidelines for nested code blocks.
 - **Syntax Highlighting**: High-performance multi-language tokenization for C, C++, Python, Rust, JavaScript, TypeScript, JSON, Markdown, CMake, and Shell.
 - **Inline Find & Replace**: Non-intrusive HUD (`Ctrl+F`, `Ctrl+H`) with regex, whole-word, case matching, and instant hit counts.
-- **Advanced Editing**: Duplicate line (`Ctrl+D`), delete line (`Ctrl+Shift+K`), move lines (`Alt+Up`/`Alt+Down`), toggle comments (`Ctrl+/`), and go to line (`Ctrl+G`).
+- **Advanced Editing**: Delete line (`Ctrl+Shift+K`), move lines (`Alt+Up`/`Alt+Down`), toggle comments (`Ctrl+/`), and go to line (`Ctrl+G`).
+
+### 🧠 Language Intelligence (LSP)
+- **Go to Definition (`F12`) & Find References (`Shift+F12`)**: Direct jump to declaration or all symbol references across the project.
+- **Hover Documentation**: Detailed documentation, markdown tooltips, and type signatures when hovering over symbols.
+- **Intelligent Autocompletion**: Real-time context-aware completion popup with auto-closing and signature help.
+- **Symbol Renaming (`F2`)**: Safe workspace-wide symbol refactoring.
+- **Code Formatting (`Shift+Alt+F`)**: Native LSP document formatting (ClangFormat, rustfmt, Black, etc.).
+- **Diagnostics & Error Navigation**: Real-time squiggles, error count badges, and one-click navigation to diagnostics.
+
+### 🌿 Integrated Git & Source Control
+- **Async Git Engine**: Zero-lag Git CLI integration running completely in the background.
+- **Source Control Sidebar**: View unstaged changes, stage/unstage files (`+`/`-`), and commit directly with keyboard shortcuts.
+- **Branch Management & Push/Pull**: Switch branches, create branches, and sync with remote repositories.
+- **Visual Diff Viewer**: Dedicated side-by-side / unified diff inspector with syntax-colored additions and deletions.
+
+### 🐞 Native GDB/MI Debugger
+- **GDB Async Client**: Integrated GDB Machine Interface backend without external heavy debugger plugins.
+- **Breakpoints**: Click gutter or press `F9` to toggle line breakpoints with visual indicator dots.
+- **Execution Control**: Continue (`F5`), Step Over (`F10`), Step Into (`F11`), Step Out (`Shift+F11`), Pause, and Stop.
+- **Inspector Panels**: Real-time Call Stack frame navigator, Local Variables tree, and GDB console output.
 
 ### 📂 Navigation & Project Management
+- **Async Background Scanner**: Project files are indexed asynchronously with high-speed `.gitignore` wildcard filtering.
+- **Project Templates**: Instant scaffolding for modern C++20 CMake, Rust Cargo, Python App, and Minimal Web projects.
+- **Welcome Dashboard**: Minimalist startup screen with quick access to recent projects, templates, and documentation.
 - **Subsequence Fuzzy Open (`Ctrl+P`)**: Lightning-fast file search across entire directory trees.
 - **Command Palette (`Ctrl+Shift+P`)**: Instant keyboard access to every IDE action.
 - **Project Explorer**: Lightweight workspace tree with file icons, context menus, and file filtering.
@@ -55,7 +83,8 @@ Modern code editors and IDEs have become notoriously resource-intensive:
 - **Compiler Error Jump**: Click errors (`file:line:col`) in build output to navigate straight to the error line.
 - **Problems & Diagnostics Panel**: Aggregated compiler warnings and error diagnostics.
 
-### 🎨 Customization
+### 🎨 Customization & Workspace Profiles
+- **Workspace Profiles**: One-click configuration presets (C/C++, Python, Rust, Web, Minimal Writing) with JSON import/export.
 - **Built-in Dark & Light Themes**: Obsidian, Tokyo Night, One Dark Pro, Monokai Pro, and Cyberpunk Neon.
 - **Distraction-Free Mode (`F11`)**: Fullscreen minimal code canvas.
 - **Customizable Preferences**: Configurable font family, font size, tab size, indentation mode, and build targets.
@@ -290,20 +319,31 @@ sudo cmake --install build
 | `Ctrl+S` | Save Active Document |
 | `Ctrl+Shift+S` | Save All Open Documents |
 | `Ctrl+W` | Close Current Document Tab |
+| `Ctrl+\` | Split Editor View (Toggle Vertical / Horizontal Split) |
+| `Ctrl+D` | Select Next Occurrence (Multi-Cursor) |
 | `Ctrl+F` | Document Find Bar |
 | `Ctrl+H` | Document Replace Bar |
 | `Ctrl+Shift+F` | Project-Wide Grep Search |
 | `Ctrl+G` | Jump to Line Number (`:line[:col]`) |
 | `Ctrl+/` | Toggle Line / Selection Comment |
-| `Ctrl+D` | Duplicate Current Line or Selection |
 | `Ctrl+Shift+K` | Delete Current Line |
 | `Alt+Up` / `Alt+Down` | Move Active Line Up / Down |
-| `Ctrl+B` | Toggle Sidebar (File Explorer) |
+| `Ctrl+Shift+[` | Fold Current Code Block |
+| `Ctrl+Shift+]` | Unfold Current Code Block |
+| `F12` | Go to Definition (LSP) |
+| `Shift+F12` | Find All References (LSP) |
+| `F2` | Rename Symbol (LSP) |
+| `Shift+Alt+F` | Format Document (LSP) |
+| `F9` | Toggle Breakpoint |
+| `F5` | Start / Continue Debugging (GDB) |
+| `F10` | Debug Step Over |
+| `F11` | Debug Step Into / Distraction-Free Toggle |
+| `Shift+F11` | Debug Step Out |
+| `Shift+F5` | Stop Debugging |
+| `Ctrl+B` | Toggle Sidebar |
 | `Ctrl+~` | Toggle Bottom Terminal Panel |
-| `F5` | Run Current File / Target |
 | `Ctrl+F7` | Build Project (CMake / Make / Cargo) |
 | `Ctrl+Shift+B` | Clean and Rebuild Project |
-| `F11` | Toggle Distraction-Free Fullscreen |
 | `Ctrl+,` | Preferences & Settings Dialog |
 
 ---

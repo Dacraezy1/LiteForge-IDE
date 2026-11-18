@@ -1,10 +1,12 @@
 add_executable(liteforge_tests
     test_core.cpp
-    ${CMAKE_SOURCE_DIR}/include/liteforge/core/Document.hpp
-    ${CMAKE_SOURCE_DIR}/include/liteforge/core/Theme.hpp
     ${CMAKE_SOURCE_DIR}/src/core/FileUtils.cpp
     ${CMAKE_SOURCE_DIR}/src/core/Document.cpp
     ${CMAKE_SOURCE_DIR}/src/core/Theme.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/Config.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ProjectTemplates.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ProfileManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/git/GitService.cpp
 )
 
 target_include_directories(liteforge_tests PRIVATE

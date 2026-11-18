@@ -40,6 +40,12 @@ set(CORE_SOURCES
     src/core/Document.cpp
     src/core/FileUtils.cpp
     src/core/Project.cpp
+    src/core/ProjectTemplates.cpp
+    src/core/ProfileManager.cpp
+)
+
+set(GIT_SOURCES
+    src/git/GitService.cpp
 )
 
 set(EDITOR_SOURCES
@@ -48,6 +54,7 @@ set(EDITOR_SOURCES
     src/editor/FindReplaceWidget.cpp
     src/editor/CodeEditor.cpp
     src/editor/TabManager.cpp
+    src/editor/EditorSplitter.cpp
 )
 
 set(UI_SOURCES
@@ -59,11 +66,17 @@ set(UI_SOURCES
     src/ui/StatusBar.cpp
     src/ui/SettingsDialog.cpp
     src/ui/AboutDialog.cpp
+    src/ui/GitPanel.cpp
+    src/ui/DiffViewerDialog.cpp
+    src/ui/WelcomeScreen.cpp
+    src/ui/CompletionPopup.cpp
+    src/ui/DebuggerPanel.cpp
     src/ui/MainWindow.cpp
 )
 
 set(BUILD_SOURCES
     src/build/BuildSystem.cpp
+    src/build/Debugger.cpp
 )
 
 set(LSP_SOURCES
@@ -74,6 +87,7 @@ add_executable(liteforge
     src/main.cpp
     ${ALL_HEADERS}
     ${CORE_SOURCES}
+    ${GIT_SOURCES}
     ${EDITOR_SOURCES}
     ${UI_SOURCES}
     ${BUILD_SOURCES}
