@@ -75,6 +75,26 @@ void CommandPalette::registerCommand(const QString& category, const QString& tit
     m_commands.push_back(PaletteCommand{title, category, shortcut, action});
 }
 
+void CommandPalette::addActionItem(const QString& fullTitle, std::function<void()> action, const QString& shortcut) {
+    QString cat = "General";
+    QString title = fullTitle;
+    int idx = fullTitle.indexOf(':');
+    if (idx != -1) {
+        cat = fullTitle.left(idx).trimmed();
+        title = fullTitle.mid(idx + 1).trimmed();
+    }
+    registerCommand(cat, title, shortcut, action);
+}
+
+void CommandPalette::showPalette() {
+    showPalette(Mode::Commands);
+}
+
+void CommandPalette::showQuickOpen(const QStringList& files) {
+    setProjectFiles(files);
+    showPalette(Mode::Files);
+}
+
 void CommandPalette::setProjectFiles(const QStringList& files) {
     m_projectFiles = files;
 }

@@ -29,9 +29,12 @@ public:
     ~CommandPalette() override = default;
 
     void registerCommand(const QString& category, const QString& title, const QString& shortcut, std::function<void()> action);
+    void addActionItem(const QString& fullTitle, std::function<void()> action, const QString& shortcut = QString());
     void setProjectFiles(const QStringList& files);
 
     void showPalette(Mode mode);
+    void showPalette();
+    void showQuickOpen(const QStringList& files);
 
 signals:
     void fileSelected(const QString& filePath);

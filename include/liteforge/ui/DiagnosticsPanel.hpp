@@ -35,6 +35,12 @@ public:
     int errorCount() const { return m_errorCount; }
     int warningCount() const { return m_warningCount; }
 
+    void updateTabTitle(QTabWidget* tabWidget, int tabIndex) {
+        if (tabWidget && tabIndex >= 0 && tabIndex < tabWidget->count()) {
+            tabWidget->setTabText(tabIndex, QString("Problems (%1)").arg(m_errorCount + m_warningCount));
+        }
+    }
+
 signals:
     void itemSelected(const QString& file, int line, int column);
 

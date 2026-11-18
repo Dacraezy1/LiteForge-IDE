@@ -14,7 +14,7 @@ public:
     ~StatusBar() override = default;
 
     void setGitBranch(const QString& branch);
-    void setCursorPosition(int line, int col, int totalLines, int totalChars);
+    void setCursorPosition(int line, int col, int totalLines = 0, int totalChars = 0);
     void setEncoding(const QString& encoding);
     void setLineEnding(const QString& le);
     void setLanguage(const QString& lang);
