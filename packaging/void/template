@@ -1,0 +1,18 @@
+# Template file for 'liteforge'
+pkgname=liteforge
+version=1.0.0
+revision=1
+build_style=cmake
+configure_args="-DCMAKE_BUILD_TYPE=Release"
+hostmakedepends="cmake pkg-config"
+makedepends="qt6-base-devel"
+short_desc="Featherweight, zero-bloat native C++ IDE"
+maintainer="LiteForge Team <contact@liteforge.org>"
+license="MIT"
+homepage="https://github.com/Dacraezy1/LiteForge-IDE"
+distfiles="https://github.com/Dacraezy1/LiteForge-IDE/archive/refs/tags/v${version}.tar.gz"
+checksum="SKIP"
+
+post_install() {
+    vlicense LICENSE
+}

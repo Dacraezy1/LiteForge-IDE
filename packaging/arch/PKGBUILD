@@ -1,0 +1,29 @@
+pkgname=liteforge
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Featherweight, zero-bloat native C++ IDE"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Dacraezy1/LiteForge-IDE"
+license=('MIT')
+depends=('qt6-base')
+makedepends=('cmake' 'gcc')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/Dacraezy1/LiteForge-IDE/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "LiteForge-IDE-$pkgver"
+    cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr
+    cmake --build build --parallel
+}
+
+check() {
+    cd "LiteForge-IDE-$pkgver"
+    ctest --test-dir build --output-on-failure
+}
+
+package() {
+    cd "LiteForge-IDE-$pkgver"
+    DESTDIR="$pkgdir" cmake --install build
+}

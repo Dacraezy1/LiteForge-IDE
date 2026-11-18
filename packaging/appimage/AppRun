@@ -1,0 +1,8 @@
+#!/bin/sh
+SELF=$(readlink -f "$0")
+HERE=${SELF%/*}
+export PATH="${HERE}/usr/bin:${PATH}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib64:${LD_LIBRARY_PATH}"
+export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
+export QML2_IMPORT_PATH="${HERE}/usr/qml:${QML2_IMPORT_PATH}"
+exec "${HERE}/usr/bin/liteforge" "$@"
