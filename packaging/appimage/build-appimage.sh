@@ -17,6 +17,7 @@ cp -v assets/liteforge.desktop "${APP_DIR}/usr/share/applications/"
 cp -v assets/liteforge.desktop "${APP_DIR}/"
 cp -v assets/icon.svg "${APP_DIR}/usr/share/icons/hicolor/scalable/apps/liteforge.svg"
 cp -v assets/icon.svg "${APP_DIR}/liteforge.svg"
+cp -v assets/icon.svg "${APP_DIR}/.DirIcon" || true
 cp -v packaging/appimage/AppRun "${APP_DIR}/AppRun"
 chmod +x "${APP_DIR}/AppRun"
 
