@@ -17,10 +17,14 @@ bool LSPClient::isRunning() const {
     return m_process && m_process->state() == QProcess::Running;
 }
 
-bool LSPClient::startServer(const QString& serverExecutable, const QStringList& args, const QString& rootUri) {
+bool LSPClient::startServer(const QString& serverExecutable, const QStringList& args, const QString& rootPath) {
     if (isRunning()) {
         stopServer();
     }
+
+    m_serverExecutable = serverExecutable;
+    m_serverArgs = args;
+    m_rootPath = rootPath;
 
     m_process = new QProcess(this);
     connect(m_process, &QProcess::readyReadStandardOutput, this, &LSPClient::onReadyRead);
@@ -35,19 +39,28 @@ bool LSPClient::startServer(const QString& serverExecutable, const QStringList& 
 
     emit serverStarted();
 
-    // Send initialize request
+    // Send initialize request with comprehensive client capabilities
     QJsonObject initParams;
     initParams["processId"] = static_cast<int>(m_process->processId());
-    initParams["rootUri"] = rootUri.startsWith("file://") ? rootUri : "file://" + rootUri;
+    initParams["rootUri"] = LSPProtocol::pathToUri(rootPath);
 
     QJsonObject clientCaps;
     QJsonObject textDocCaps;
     textDocCaps["publishDiagnostics"] = QJsonObject{{"relatedInformation", true}};
+    textDocCaps["completion"] = QJsonObject{{"completionItem", QJsonObject{{"snippetSupport", false}}}};
+    textDocCaps["hover"] = QJsonObject{{"contentFormat", QJsonArray{"plaintext", "markdown"}}};
+    textDocCaps["definition"] = QJsonObject{{"dynamicRegistration", false}};
+    textDocCaps["references"] = QJsonObject{{"dynamicRegistration", false}};
+    textDocCaps["rename"] = QJsonObject{{"dynamicRegistration", false}};
+    textDocCaps["formatting"] = QJsonObject{{"dynamicRegistration", false}};
+    textDocCaps["documentSymbol"] = QJsonObject{{"hierarchicalDocumentSymbolSupport", true}};
+
     clientCaps["textDocument"] = textDocCaps;
     initParams["capabilities"] = clientCaps;
 
     sendRequest("initialize", initParams, [this](const QJsonObject&) {
         m_initialized = true;
+        m_restartAttempts = 0;
         sendNotification("initialized", QJsonObject{});
     });
 
@@ -57,6 +70,7 @@ bool LSPClient::startServer(const QString& serverExecutable, const QStringList& 
 void LSPClient::stopServer() {
     if (!isRunning()) return;
 
+    m_initialized = false;
     sendRequest("shutdown", QJsonObject{}, [this](const QJsonObject&) {
         sendNotification("exit", QJsonObject{});
     });
@@ -70,16 +84,16 @@ void LSPClient::stopServer() {
         m_process = nullptr;
     }
 
-    m_initialized = false;
+    m_pendingRequests.clear();
     emit serverStopped();
 }
 
-void LSPClient::didOpen(const QString& uri, const QString& languageId, int version, const QString& text) {
+void LSPClient::didOpen(const QString& filePath, const QString& languageId, int version, const QString& text) {
     if (!m_initialized) return;
 
     QJsonObject params;
     QJsonObject doc;
-    doc["uri"] = uri.startsWith("file://") ? uri : "file://" + uri;
+    doc["uri"] = LSPProtocol::pathToUri(filePath);
     doc["languageId"] = languageId;
     doc["version"] = version;
     doc["text"] = text;
@@ -88,12 +102,12 @@ void LSPClient::didOpen(const QString& uri, const QString& languageId, int versi
     sendNotification("textDocument/didOpen", params);
 }
 
-void LSPClient::didChange(const QString& uri, int version, const QString& text) {
+void LSPClient::didChange(const QString& filePath, int version, const QString& text) {
     if (!m_initialized) return;
 
     QJsonObject params;
     QJsonObject doc;
-    doc["uri"] = uri.startsWith("file://") ? uri : "file://" + uri;
+    doc["uri"] = LSPProtocol::pathToUri(filePath);
     doc["version"] = version;
     params["textDocument"] = doc;
 
@@ -106,25 +120,25 @@ void LSPClient::didChange(const QString& uri, int version, const QString& text) 
     sendNotification("textDocument/didChange", params);
 }
 
-void LSPClient::didClose(const QString& uri) {
+void LSPClient::didClose(const QString& filePath) {
     if (!m_initialized) return;
 
     QJsonObject params;
     QJsonObject doc;
-    doc["uri"] = uri.startsWith("file://") ? uri : "file://" + uri;
+    doc["uri"] = LSPProtocol::pathToUri(filePath);
     params["textDocument"] = doc;
 
     sendNotification("textDocument/didClose", params);
 }
 
-int LSPClient::requestCompletion(const QString& uri, int line, int character, std::function<void(const std::vector<CompletionItem>&)> callback) {
+int LSPClient::requestCompletion(const QString& filePath, int line, int character, std::function<void(const std::vector<CompletionItem>&)> callback) {
     if (!m_initialized) return -1;
 
     QJsonObject params;
     QJsonObject doc;
-    doc["uri"] = uri.startsWith("file://") ? uri : "file://" + uri;
+    doc["uri"] = LSPProtocol::pathToUri(filePath);
     params["textDocument"] = doc;
-    params["position"] = Position{line, character}.toJson();
+    params["position"] = Position{line - 1, character - 1}.toJson();
 
     return sendRequest("textDocument/completion", params, [callback](const QJsonObject& res) {
         std::vector<CompletionItem> items;
@@ -136,14 +150,173 @@ int LSPClient::requestCompletion(const QString& uri, int line, int character, st
             } else if (val.isObject() && val.toObject().contains("items")) {
                 arr = val.toObject()["items"].toArray();
             }
-            for (const auto& itemVal : arr) {
+            for (const auto& item practicalVal : arr) {
                 items.push_back(CompletionItem::fromJson(itemVal.toObject()));
             }
         }
-        if (callback) {
-            callback(items);
-        }
+        if (callback) callback(items);
     });
+}
+
+int LSPClient::requestDefinition(const QString& filePath, int line, int character, std::function<void(const std::vector<Location>&)> callback) {
+    if (!m_initialized) return -1;
+
+    QJsonObject params;
+    QJsonObject doc;
+    doc["uri"] = LSPProtocol::pathToUri(filePath);
+    params["textDocument"] = doc;
+    params["position"] = Position{line - 1, character - 1}.toJson();
+
+    return sendRequest("textDocument/definition", params, [callback](const QJsonObject& res) {
+        std::vector<Location> locs;
+        if (res.contains("result")) {
+            QJsonValue val = res["result"];
+            if (val.isArray()) {
+                for (const auto& v : val.toArray()) {
+                    locs.push_back(Location::fromJson(v.toObject()));
+                }
+            } else if (val.isObject()) {
+                locs.push_back(Location::fromJson(val.toObject()));
+            }
+        }
+        if (callback) callback(locs);
+    });
+}
+
+int LSPClient::requestReferences(const QString& filePath, int line, int character, std::function<void(const std::vector<Location>&)> callback) {
+    if (!m_initialized) return -1;
+
+    QJsonObject params;
+    QJsonObject doc;
+    doc["uri"] = LSPProtocol::pathToUri(filePath);
+    params["textDocument"] = doc;
+    params["position"] = Position{line - 1, character - 1}.toJson();
+    params["context"] = QJsonObject{{"includeDeclaration", true}};
+
+    return sendRequest("textDocument/references", params, [callback](const QJsonObject& res) {
+        std::vector<Location> locs;
+        if (res.contains("result") && res["result"].isArray()) {
+            for (const auto& v : res["result"].toArray()) {
+                locs.push_back(Location::fromJson(v.toObject()));
+            }
+        }
+        if (callback) callback(locs);
+    });
+}
+
+int LSPClient::requestHover(const QString& filePath, int line, int character, std::function<void(const HoverInfo&)> callback) {
+    if (!m_initialized) return -1;
+
+    QJsonObject params;
+    QJsonObject doc;
+    doc["uri"] = LSPProtocol::pathToUri(filePath);
+    params["textDocument"] = doc;
+    params["position"] = Position{line - 1, character - 1}.toJson();
+
+    return sendRequest("textDocument/hover", params, [callback](const QJsonObject& res) {
+        HoverInfo hover;
+        if (res.contains("result") && res["result"].isObject()) {
+            hover = HoverInfo::fromJson(res["result"].toObject());
+        }
+        if (callback) callback(hover);
+    });
+}
+
+int LSPClient::requestRename(const QString& filePath, int line, int character, const QString& newName, std::function<void(const std::vector<TextEdit>&)> callback) {
+    if (!m_initialized) return -1;
+
+    QJsonObject params;
+    QJsonObject doc;
+    doc["uri"] = LSPProtocol::pathToUri(filePath);
+    params["textDocument"] = doc;
+    params["position"] = Position{line - 1, character - 1}.toJson();
+    params["newName"] = newName;
+
+    return sendRequest("textDocument/rename", params, [filePath, callback](const QJsonObject& res) {
+        std::vector<TextEdit> edits;
+        if (res.contains("result") && res["result"].isObject()) {
+            QJsonObject result = res["result"].toObject();
+            if (result.contains("changes")) {
+                QJsonObject changes = result["changes"].toObject();
+                QString uri = LSPProtocol::pathToUri(filePath);
+                if (changes.contains(uri) && changes[uri].isArray()) {
+                    for (const auto& editVal : changes[uri].toArray()) {
+                        edits.push_back(TextEdit::fromJson(editVal.toObject()));
+                    }
+                }
+            }
+        }
+        if (callback) callback(edits);
+    });
+}
+
+int LSPClient::requestFormatting(const QString& filePath, std::function<void(const std::vector<TextEdit>&)> callback) {
+    if (!m_initialized) return -1;
+
+    QJsonObject params;
+    QJsonObject doc;
+    doc["uri"] = LSPProtocol::pathToUri(filePath);
+    params["textDocument"] = doc;
+    params["options"] = QJsonObject{{"tabSize", 4}, {"insertSpaces", true}};
+
+    return sendRequest("textDocument/formatting", params, [callback](const QJsonObject& res) {
+        std::vector<TextEdit> edits;
+        if (res.contains("result") && res["result"].isArray()) {
+            for (const auto& editVal : res["result"].toArray()) {
+                edits.push_back(TextEdit::fromJson(editVal.toObject()));
+            }
+        }
+        if (callback) callback(edits);
+    });
+}
+
+int LSPClient::requestDocumentSymbols(const QString& filePath, std::function<void(const std::vector<DocumentSymbol>&)> callback) {
+    if (!m_initialized) return -1;
+
+    QJsonObject params;
+    QJsonObject doc;
+    doc["uri"] = LSPProtocol::pathToUri(filePath);
+    params["textDocument"] = doc;
+
+    return sendRequest("textDocument/documentSymbol", params, [callback](const QJsonObject& res) {
+        std::vector<DocumentSymbol> symbols;
+        if (res.contains("result") && res["result"].isArray()) {
+            for (const auto& sVal : res["result"].toArray()) {
+                symbols.push_back(DocumentSymbol::fromJson(sVal.toObject()));
+            }
+        }
+        if (callback) callback(symbols);
+    });
+}
+
+int LSPClient::requestWorkspaceSymbols(const QString& query, std::function<void(const std::vector<DocumentSymbol>&)> callback) {
+    if (!m_initialized) return -1;
+
+    QJsonObject params;
+    params["query"] = query;
+
+    return sendRequest("workspace/symbol", params, [callback](const QJsonObject& res) {
+        std::vector<DocumentSymbol> symbols;
+        if (res.contains("result") && res["result"].isArray()) {
+            for (const auto& sVal : res["result"].toArray()) {
+                symbols.push_back(DocumentSymbol::fromJson(sVal.toObject()));
+            }
+        }
+        if (callback) callback(symbols);
+    });
+}
+
+void LSPClient::cancelRequest(int requestId) {
+    if (!isRunning()) return;
+
+    auto it = m_pendingRequests.find(requestId);
+    if (it != m_pendingRequests.end()) {
+        m_pendingRequests.erase(it);
+    }
+
+    QJsonObject params;
+    params["id"] = requestId;
+    sendNotification("$/cancelRequest", params);
 }
 
 void LSPClient::sendNotification(const QString& method, const QJsonObject& params) {
@@ -234,6 +407,7 @@ void LSPClient::handleMessage(const QJsonObject& message) {
         if (method == "textDocument/publishDiagnostics") {
             QJsonObject params = message["params"].toObject();
             QString uri = params["uri"].toString();
+            QString localPath = LSPProtocol::uriToPath(uri);
             QJsonArray diagsArray = params["diagnostics"].toArray();
 
             std::vector<Diagnostic> diags;
@@ -241,7 +415,7 @@ void LSPClient::handleMessage(const QJsonObject& message) {
                 diags.push_back(Diagnostic::fromJson(dVal.toObject()));
             }
 
-            emit diagnosticsReceived(uri, diags);
+            emit diagnosticsReceived(localPath, diags);
         }
     }
 }
@@ -252,8 +426,15 @@ void LSPClient::onErrorOccurred(QProcess::ProcessError) {
     }
 }
 
-void LSPClient::onFinished(int, QProcess::ExitStatus) {
+void LSPClient::onFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    m_initialized = false;
     emit serverStopped();
+
+    // Crash recovery: if exited abnormally, attempt restart
+    if (exitStatus == QProcess::CrashExit && m_restartAttempts < 3 && !m_serverExecutable.isEmpty()) {
+        m_restartAttempts++;
+        startServer(m_serverExecutable, m_serverArgs, m_rootPath);
+    }
 }
 
 } // namespace liteforge::lsp

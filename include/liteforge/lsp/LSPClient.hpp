@@ -17,18 +17,30 @@ public:
     explicit LSPClient(QObject* parent = nullptr);
     ~LSPClient() override;
 
-    bool startServer(const QString& serverExecutable, const QStringList& args, const QString& rootUri);
+    bool startServer(const QString& serverExecutable, const QStringList& args, const QString& rootPath);
     void stopServer();
     bool isRunning() const;
+    bool isInitialized() const { return m_initialized; }
 
-    void didOpen(const QString& uri, const QString& languageId, int version, const QString& text);
-    void didChange(const QString& uri, int version, const QString& text);
-    void didClose(const QString& uri);
+    // Document sync
+    void didOpen(const QString& filePath, const QString& languageId, int version, const QString& text);
+    void didChange(const QString& filePath, int version, const QString& text);
+    void didClose(const QString& filePath);
 
-    int requestCompletion(const QString& uri, int line, int character, std::function<void(const std::vector<CompletionItem>&)> callback);
+    // Language Intelligence requests
+    int requestCompletion(const QString& filePath, int line, int character, std::function<void(const std::vector<CompletionItem>&)> callback);
+    int requestDefinition(const QString& filePath, int line, int character, std::function<void(const std::vector<Location>&)> callback);
+    int requestReferences(const QString& filePath, int line, int character, std::function<void(const std::vector<Location>&)> callback);
+    int requestHover(const QString& filePath, int line, int character, std::function<void(const HoverInfo&)> callback);
+    int requestRename(const QString& filePath, int line, int character, const QString& newName, std::function<void(const std::vector<TextEdit>&)> callback);
+    int requestFormatting(const QString& filePath, std::function<void(const std::vector<TextEdit>&)> callback);
+    int requestDocumentSymbols(const QString& filePath, std::function<void(const std::vector<DocumentSymbol>&)> callback);
+    int requestWorkspaceSymbols(const QString& query, std::function<void(const std::vector<DocumentSymbol>&)> callback);
+
+    void cancelRequest(int requestId);
 
 signals:
-    void diagnosticsReceived(const QString& uri, const std::vector<Diagnostic>& diagnostics);
+    void diagnosticsReceived(const QString& filePath, const std::vector<Diagnostic>& diagnostics);
     void serverStarted();
     void serverStopped();
     void serverError(const QString& error);
@@ -48,6 +60,11 @@ private:
     QByteArray m_incomingBuffer;
     int m_nextRequestId{1};
     bool m_initialized{false};
+
+    QString m_serverExecutable;
+    QStringList m_serverArgs;
+    QString m_rootPath;
+    int m_restartAttempts{0};
 
     std::map<int, std::function<void(const QJsonObject&)>> m_pendingRequests;
 };
