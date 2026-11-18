@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QTextBlock>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QRegularExpression>
 #include <QFontDatabase>
 #include <QScrollBar>
@@ -75,8 +76,7 @@ void CodeEditor::updateFontSettings(const QString& family, int size) {
     QFont font(family, currentSize);
     font.setStyleHint(QFont::Monospace);
     font.setFixedPitch(true);
-    setFont(font);
-
+    setFont(font);\n
     // Configure tab stop distance
     QFontMetrics metrics(font);
     setTabStopDistance(m_tabWidth * metrics.horizontalAdvance(' '));
@@ -88,16 +88,15 @@ int CodeEditor::lineNumberGutterWidth() {
     int maxLines = std::max(1, blockCount());
     while (maxLines >= 10) {
         maxLines /= 10;
-        ++digits;
-    }
-    // Min 3 digits width + padding
+        ++digits;\n    }
     digits = std::max(digits, 3);
-    int space = 18 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits;
+    // Breakpoint area (14px) + digits + folding icon area (14px) + padding
+    int space = 30 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits;
     return space;
 }
 
 void CodeEditor::updateLineNumberGutterWidth(int /* newBlockCount */) {
-    setViewportMargins(lineNumberGutterWidth(), 0, 0, 0);
+    setViewportMargins(lineNumberGutterWidth(), 0, m_minimapEnabled ? 70 : 0, 0);
 }
 
 void CodeEditor::updateLineNumberGutter(const QRect& rect, int dy) {
@@ -145,7 +144,17 @@ void CodeEditor::lineNumberGutterPaintEvent(QPaintEvent* event) {
 
     while (block.isValid() && top <= event->rect().bottom()) {
         if (block.isVisible() && bottom >= event->rect().top()) {
-            QString number = QString::number(blockNumber + 1);
+            int lineNum = blockNumber + 1;
+
+            // 1. Breakpoint Indicator
+            if (hasBreakpoint(lineNum)) {
+                painter.setBrush(QColor(230, 45, 45));
+                painter.setPen(Qt::NoPen);
+                painter.drawEllipse(4, top + (fontMetrics().height() - 10) / 2, 9, 9);
+            }
+
+            // 2. Line Number
+            QString number = QString::number(lineNum);
             if (blockNumber == currentLine) {
                 painter.setPen(theme.lineNumberActive);
                 QFont f = painter.font();
@@ -158,8 +167,19 @@ void CodeEditor::lineNumberGutterPaintEvent(QPaintEvent* event) {
                 painter.setFont(f);
             }
 
-            painter.drawText(0, top, m_lineNumberGutter->width() - 8, fontMetrics().height(),
+            int numWidth = m_lineNumberGutter->width() - 20;
+            painter.drawText(14, top, numWidth, fontMetrics().height(),
                              Qt::AlignRight | Qt::AlignVCenter, number);
+
+            // 3. Folding Chevron
+            QString lineText = block.text().trimmed();
+            if (lineText.endsWith('{') || lineText.endsWith(':')) {
+                painter.setPen(theme.lineNumberNormal);
+                bool folded = isBlockFolded(blockNumber);
+                QString chevron = folded ? "▶" : "▼";
+                painter.drawText(m_lineNumberGutter->width() - 14, top, 12, fontMetrics().height(),
+                                 Qt::AlignCenter, chevron);
+            }
         }
 
         block = block.next();
@@ -169,14 +189,179 @@ void CodeEditor::lineNumberGutterPaintEvent(QPaintEvent* event) {
     }
 }
 
+void CodeEditor::gutterMousePressEvent(QMouseEvent* event) {
+    int y = event->pos().y();
+    QTextBlock block = firstVisibleBlock();
+    int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
+    int bottom = top + qRound(blockBoundingRect(block).height());
+
+    while (block.isValid() && top <= m_lineNumberGutter->height()) {
+        if (block.isVisible() && y >= top && y <= bottom) {
+            int lineNum = block.blockNumber() + 1;
+
+            // Click on chevron area (right 16px of gutter) -> Fold/Unfold
+            if (event->pos().x() >= m_lineNumberGutter->width() - 16) {
+                toggleFold(block.blockNumber());
+                return;
+            }
+
+            // Click on line number / breakpoint area -> Toggle Breakpoint
+            toggleBreakpoint(lineNum);
+            m_lineNumberGutter->update();
+            return;
+        }
+
+        block = block.next();
+        top = bottom;
+        bottom = top + qRound(blockBoundingRect(block).height());
+    }
+}
+
+void CodeEditor::toggleBreakpoint(int lineNumber) {
+    if (m_breakpoints.count(lineNumber)) {
+        m_breakpoints.erase(lineNumber);
+        emit breakpointToggled(lineNumber, false);
+    } else {
+        m_breakpoints.insert(lineNumber);
+        emit breakpointToggled(lineNumber, true);
+    }
+    m_lineNumberGutter->update();
+}
+
+bool CodeEditor::hasBreakpoint(int lineNumber) const {
+    return m_breakpoints.count(lineNumber) > 0;
+}
+
+void CodeEditor::toggleFold(int blockNumber) {
+    int endBlock = findMatchingBraceBlock(blockNumber);
+    if (endBlock <= blockNumber) return;
+
+    bool folded = isBlockFolded(blockNumber);
+    if (folded) {
+        // Unfold
+        m_foldedBlocks.erase(blockNumber);
+        for (int i = blockNumber + 1; i <= endBlock; ++i) {
+            QTextBlock b = document()->findBlockByNumber(i);
+            b.setVisible(true);
+        }
+    } else {
+        // Fold
+        m_foldedBlocks.insert(blockNumber);
+        for (int i = blockNumber + 1; i <= endBlock; ++i) {
+            QTextBlock b = document()->findBlockByNumber(i);
+            b.setVisible(false);
+        }
+    }
+
+    document()->markContentsDirty(0, document()->characterCount());
+    m_lineNumberGutter->update();
+    viewport()->update();
+}
+
+bool CodeEditor::isBlockFolded(int blockNumber) const {
+    return m_foldedBlocks.count(blockNumber) > 0;
+}
+
+void CodeEditor::foldAll() {
+    for (int i = 0; i < blockCount(); ++i) {
+        QTextBlock b = document()->findBlockByNumber(i);
+        QString t = b.text().trimmed();
+        if ((t.endsWith('{') || t.endsWith(':')) && !isBlockFolded(i)) {
+            toggleFold(i);
+        }
+    }
+}
+
+void CodeEditor::unfoldAll() {
+    m_foldedBlocks.clear();
+    for (int i = 0; i < blockCount(); ++i) {
+        QTextBlock b = document()->findBlockByNumber(i);
+        b.setVisible(true);
+    }
+    document()->markContentsDirty(0, document()->characterCount());
+    m_lineNumberGutter->update();
+    viewport()->update();
+}
+
+int CodeEditor::findMatchingBraceBlock(int startBlockNumber) {
+    int depth = 0;
+    for (int i = startBlockNumber; i < blockCount(); ++i) {
+        QString text = document()->findBlockByNumber(i).text();
+        for (QChar c : text) {
+            if (c == '{') depth++;
+            else if (c == '}') {
+                depth--;
+                if (depth == 0) return i;
+            }
+        }
+    }
+    return startBlockNumber;
+}
+
+void CodeEditor::selectNextOccurrence() {
+    QTextCursor cur = textCursor();
+    QString targetText;
+
+    if (cur.hasSelection()) {
+        targetText = cur.selectedText();
+    } else {
+        cur.select(QTextCursor::WordUnderCursor);
+        targetText = cur.selectedText();
+        setTextCursor(cur);
+        if (targetText.isEmpty()) return;
+    }
+
+    int searchStart = cur.selectionEnd();
+    if (!m_extraCursors.isEmpty()) {
+        searchStart = m_extraCursors.last().selectionEnd();
+    }
+
+    QTextDocument* doc = document();
+    QTextCursor next = doc->find(targetText, searchStart);
+    if (next.isNull()) {
+        next = doc->find(targetText, 0); // Wrap around
+    }
+
+    if (!next.isNull() && next != cur) {
+        m_extraCursors.append(next);
+        highlightCurrentLineAndBrackets();
+        viewport()->update();
+    }
+}
+
+void CodeEditor::clearExtraCursors() {
+    m_extraCursors.clear();
+    highlightCurrentLineAndBrackets();
+    viewport()->update();
+}
+
+void CodeEditor::setMinimapEnabled(bool enabled) {
+    m_minimapEnabled = enabled;
+    updateLineNumberGutterWidth(0);
+    viewport()->update();
+}
+
+void CodeEditor::setStickyScrollEnabled(bool enabled) {
+    m_stickyScrollEnabled = enabled;
+    viewport()->update();
+}
+
+void CodeEditor::setWordWrap(bool wrap) {
+    setLineWrapMode(wrap ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
+}
+
+bool CodeEditor::isWordWrap() const {
+    return lineWrapMode() == QPlainTextEdit::WidgetWidth;
+}
+
 void CodeEditor::paintEvent(QPaintEvent* event) {
     QPlainTextEdit::paintEvent(event);
 
-    // Paint subtle indentation guide lines
-    const auto& theme = core::ThemeManager::instance().currentTheme();
     QPainter painter(viewport());
-    painter.setPen(QPen(theme.indentGuide, 1, Qt::DotLine));
+    const auto& theme = core::ThemeManager::instance().currentTheme();
 
+    // 1. Paint subtle indentation guide lines
+    painter.setPen(QPen(theme.indentGuide, 1, Qt::DotLine));
     QFontMetrics fm = fontMetrics();
     int spaceWidth = fm.horizontalAdvance(' ');
     int indentPx = m_tabWidth * spaceWidth;
@@ -203,6 +388,93 @@ void CodeEditor::paintEvent(QPaintEvent* event) {
         }
         block = block.next();
     }
+
+    // 2. Draw Multi-Cursor Carets
+    if (!m_extraCursors.isEmpty()) {
+        painter.setBrush(theme.textNormal);
+        painter.setPen(Qt::NoPen);
+        for (const auto& cur : m_extraCursors) {
+            QRect r = cursorRect(cur);
+            painter.drawRect(r.left(), r.top(), 2, r.height());
+        }
+    }
+
+    // 3. Paint Sticky Scroll Header
+    if (m_stickyScrollEnabled) {
+        paintStickyScroll(painter);
+    }
+
+    // 4. Paint Minimap
+    if (m_minimapEnabled) {
+        paintMinimap(painter);
+    }
+}
+
+void CodeEditor::paintStickyScroll(QPainter& painter) {
+    QTextBlock firstBlock = firstVisibleBlock();
+    int firstBlockNum = firstBlock.blockNumber();
+    if (firstBlockNum < 2) return;
+
+    // Scan backwards to find the enclosing function/class/struct definition
+    QString scopeHeader;
+    for (int i = firstBlockNum; i >= 0; --i) {
+        QString text = document()->findBlockByNumber(i).text().trimmed();
+        if ((text.contains("class ") || text.contains("struct ") || text.contains("void ") ||
+             text.contains("int ") || text.contains("bool ") || text.contains("def ") ||
+             text.contains("fn ") || text.startsWith("namespace ")) && text.endsWith('{')) {
+            scopeHeader = text;
+            break;
+        }
+    }
+
+    if (!scopeHeader.isEmpty()) {
+        const auto& theme = core::ThemeManager::instance().currentTheme();
+        QRect headerRect(0, 0, viewport()->width() - (m_minimapEnabled ? 70 : 0), fontMetrics().height() + 6);
+        painter.fillRect(headerRect, theme.sidebarBg);
+        painter.setPen(theme.border);
+        painter.drawLine(0, headerRect.bottom(), headerRect.right(), headerRect.bottom());
+
+        painter.setPen(theme.keyword);
+        painter.setFont(font());
+        painter.drawText(8, 0, headerRect.width() - 16, headerRect.height(),
+                         Qt::AlignLeft | Qt::AlignVCenter, scopeHeader);
+    }
+}
+
+void CodeEditor::paintMinimap(QPainter& painter) {
+    int w = 65;
+    int x = viewport()->width() - w;
+    QRect minimapRect(x, 0, w, viewport()->height());
+
+    const auto& theme = core::ThemeManager::instance().currentTheme();
+    painter.fillRect(minimapRect, QColor(theme.sidebarBg.red(), theme.sidebarBg.green(), theme.sidebarBg.blue(), 180));
+    painter.setPen(theme.border);
+    painter.drawLine(x, 0, x, viewport()->height());
+
+    // Draw scaled representation
+    int totalBlocks = std::max(1, blockCount());
+    double lineH = std::max(1.5, static_cast<double>(viewport()->height()) / totalBlocks);
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(theme.textNormal.red(), theme.textNormal.green(), theme.textNormal.blue(), 100));
+
+    for (int i = 0; i < totalBlocks; i += std::max(1, totalBlocks / 300)) {
+        QString t = document()->findBlockByNumber(i).text();
+        int len = std::min(w - 10, static_cast<int>(t.length() * 2));
+        if (len > 0) {
+            int y = static_cast<int>(i * lineH);
+            painter.drawRect(x + 5, y, len, std::max(1, static_cast<int>(lineH - 0.5)));
+        }
+    }
+
+    // Viewport indicator rect
+    int firstNum = firstVisibleBlock().blockNumber();
+    int visibleBlocks = viewport()->height() / fontMetrics().height();
+    int vpY = static_cast<int>(firstNum * lineH);
+    int vpH = static_cast<int>(visibleBlocks * lineH);
+    painter.setBrush(QColor(255, 255, 255, 30));
+    painter.setPen(QColor(255, 255, 255, 60));
+    painter.drawRect(x + 2, vpY, w - 4, std::max(10, vpH));
 }
 
 void CodeEditor::highlightCurrentLineAndBrackets() {
@@ -218,6 +490,16 @@ void CodeEditor::highlightCurrentLineAndBrackets() {
         extraSelections.append(selection);
     }
 
+    // Extra cursor highlights
+    for (const auto& cur : m_extraCursors) {
+        if (cur.hasSelection()) {
+            QTextEdit::ExtraSelection sel;
+            sel.format.setBackground(core::ThemeManager::instance().currentTheme().selectionBg);
+            sel.cursor = cur;
+            extraSelections.append(sel);
+        }
+    }
+
     // Bracket matching
     matchBrackets();
 
@@ -225,7 +507,6 @@ void CodeEditor::highlightCurrentLineAndBrackets() {
 }
 
 void CodeEditor::matchBrackets() {
-    // Check if cursor is next to a bracket () [] {}
     QTextCursor cur = textCursor();
     int pos = cur.position();
     QString text = toPlainText();
@@ -346,7 +627,6 @@ void CodeEditor::autoIndent(QKeyEvent* event) {
     QTextBlock block = cur.block();
     QString text = block.text();
 
-    // Calculate current indentation
     int spaces = 0;
     for (QChar c : text) {
         if (c == ' ') spaces++;
@@ -354,7 +634,6 @@ void CodeEditor::autoIndent(QKeyEvent* event) {
         else break;
     }
 
-    // Check if line ends with '{' or ':'
     QString trimmed = text.trimmed();
     bool shouldAddIndent = trimmed.endsWith('{') || trimmed.endsWith(':');
 
@@ -373,19 +652,83 @@ void CodeEditor::autoIndent(QKeyEvent* event) {
 }
 
 void CodeEditor::keyPressEvent(QKeyEvent* event) {
-    // Auto-closing brackets
+    // 1. Multi-Cursor Key Replicating
+    if (!m_extraCursors.isEmpty()) {
+        if (event->key() == Qt::Key_Escape) {
+            clearExtraCursors();
+            event->accept();
+            return;
+        }
+
+        QString typed = event->text();
+        if (!typed.isEmpty() && typed[0].isPrint()) {
+            for (auto& c : m_extraCursors) {
+                c.insertText(typed);
+            }
+        } else if (event->key() == Qt::Key_Backspace) {
+            for (auto& c : m_extraCursors) {
+                c.deletePreviousChar();
+            }
+        } else if (event->key() == Qt::Key_Delete) {
+            for (auto& c : m_extraCursors) {
+                c.deleteChar();
+            }
+        }
+    }
+
+    // 2. Select Next Occurrence (Ctrl+D)
+    if (event->key() == Qt::Key_D && (event->modifiers() & Qt::ControlModifier)) {
+        selectNextOccurrence();
+        event->accept();
+        return;
+    }
+
+    // 3. LSP Shortcuts
+    if (event->key() == Qt::Key_F12) {
+        int line = textCursor().blockNumber() + 1;
+        int col = textCursor().positionInBlock() + 1;
+        if (event->modifiers() & Qt::ShiftModifier) {
+            emit referencesRequested(line, col);
+        } else {
+            emit definitionRequested(line, col);
+        }
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_F2) {
+        emit renameRequested(textCursor().blockNumber() + 1, textCursor().positionInBlock() + 1);
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Space && (event->modifiers() & Qt::ControlModifier)) {
+        QTextCursor cur = textCursor();
+        cur.select(QTextCursor::WordUnderCursor);
+        emit completionRequested(cur.blockNumber() + 1, cur.positionInBlock() + 1, cur.selectedText());
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_I && (event->modifiers() & Qt::ControlModifier) && (event->modifiers() & Qt::ShiftModifier)) {
+        emit formatRequested();
+        event->accept();
+        return;
+    }
+
+    // 4. Auto-closing brackets
     if (handleAutoClosingBrackets(event)) {
         event->accept();
         return;
     }
 
-    // Auto Indent on Enter
+    // 5. Auto Indent on Enter
     if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
         autoIndent(event);
         return;
     }
 
-    // Tab key: Indent selection or insert spaces
+    // 6. Tab key: Indent selection or insert spaces
     if (event->key() == Qt::Key_Tab) {
         if (textCursor().hasSelection()) {
             indentSelection();
@@ -396,13 +739,13 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
         }
     }
 
-    // Shift+Tab key: Unindent selection
+    // 7. Shift+Tab key: Unindent selection
     if (event->key() == Qt::Key_Backtab) {
         unindentSelection();
         return;
     }
 
-    // Backspace: if deleting inside empty auto-closed pair (), [], {}, delete both!
+    // 8. Backspace: delete both if inside pair
     if (event->key() == Qt::Key_Backspace && !textCursor().hasSelection()) {
         int pos = textCursor().position();
         QString t = toPlainText();
@@ -422,6 +765,16 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
     }
 
     QPlainTextEdit::keyPressEvent(event);
+}
+
+void CodeEditor::mouseMoveEvent(QMouseEvent* event) {
+    QPlainTextEdit::mouseMoveEvent(event);
+
+    // Hover tooltip request for LSP
+    if (event->modifiers() & Qt::ControlModifier) {
+        QTextCursor cur = cursorForPosition(event->pos());
+        emit hoverRequested(cur.blockNumber() + 1, cur.positionInBlock() + 1, event->globalPosition().toPoint());
+    }
 }
 
 void CodeEditor::wheelEvent(QWheelEvent* event) {
@@ -470,14 +823,12 @@ void CodeEditor::toggleComment() {
         cur.setPosition(block.position());
 
         if (text.trimmed().startsWith(commentToken.trimmed())) {
-            // Uncomment
             int idx = text.indexOf(commentToken.trimmed());
             cur.setPosition(block.position() + idx);
             for (int i = 0; i < commentToken.length(); ++i) {
                 cur.deleteChar();
             }
         } else {
-            // Comment
             cur.insertText(commentToken);
         }
     }
@@ -507,7 +858,7 @@ void CodeEditor::deleteCurrentLine() {
     cur.beginEditBlock();
     cur.select(QTextCursor::BlockUnderCursor);
     cur.removeSelectedText();
-    cur.deleteChar(); // delete newline
+    cur.deleteChar();
     cur.endEditBlock();
 }
 
@@ -520,12 +871,10 @@ void CodeEditor::moveLineUp() {
     QTextBlock currentBlock = cur.block();
     QString currentText = currentBlock.text();
 
-    // Delete current line
     cur.select(QTextCursor::BlockUnderCursor);
     cur.removeSelectedText();
     cur.deleteChar();
 
-    // Insert above
     cur.movePosition(QTextCursor::PreviousBlock);
     cur.movePosition(QTextCursor::StartOfBlock);
     cur.insertText(currentText + "\n");
@@ -645,7 +994,6 @@ bool CodeEditor::findText(const QString& exp, bool forward, bool caseSensitive, 
     }
 
     if (!found) {
-        // Wrap around search
         QTextCursor cur = textCursor();
         cur.movePosition(forward ? QTextCursor::Start : QTextCursor::End);
         setTextCursor(cur);
