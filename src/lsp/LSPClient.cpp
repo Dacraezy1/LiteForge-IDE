@@ -150,7 +150,7 @@ int LSPClient::requestCompletion(const QString& filePath, int line, int characte
             } else if (val.isObject() && val.toObject().contains("items")) {
                 arr = val.toObject()["items"].toArray();
             }
-            for (const auto& item practicalVal : arr) {
+            for (const auto& itemVal : arr) {
                 items.push_back(CompletionItem::fromJson(itemVal.toObject()));
             }
         }

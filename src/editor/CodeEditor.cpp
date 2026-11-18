@@ -76,7 +76,8 @@ void CodeEditor::updateFontSettings(const QString& family, int size) {
     QFont font(family, currentSize);
     font.setStyleHint(QFont::Monospace);
     font.setFixedPitch(true);
-    setFont(font);\n
+    setFont(font);
+
     // Configure tab stop distance
     QFontMetrics metrics(font);
     setTabStopDistance(m_tabWidth * metrics.horizontalAdvance(' '));
@@ -88,7 +89,8 @@ int CodeEditor::lineNumberGutterWidth() {
     int maxLines = std::max(1, blockCount());
     while (maxLines >= 10) {
         maxLines /= 10;
-        ++digits;\n    }
+        ++digits;
+    }
     digits = std::max(digits, 3);
     // Breakpoint area (14px) + digits + folding icon area (14px) + padding
     int space = 30 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits;
