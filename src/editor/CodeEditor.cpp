@@ -269,7 +269,7 @@ void CodeEditor::matchBrackets() {
             }
         }
     } else {
-        for (int i = bracketPos - 1; >= 0; --i) {
+        for (int i = bracketPos - 1; i >= 0; --i) {
             if (text[i] == bracketChar) depth++;
             else if (text[i] == matchChar) {
                 if (depth == 0) { matchPos = i; break; }
