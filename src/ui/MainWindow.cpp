@@ -339,7 +339,8 @@ void MainWindow::newProjectFromTemplate() {
     QStringList templates = core::ProjectTemplates::availableTemplates();
     bool ok = false;
     QString chosen = QInputDialog::getItem(this, "New Project", "Choose Project Template:", templates, 0, false, &ok);
-    if (!ok || chosen.isEmpty()) return;\n
+    if (!ok || chosen.isEmpty()) return;
+
     QString dir = QFileDialog::getExistingDirectory(this, "Select Project Destination Directory");
     if (dir.isEmpty()) return;
 
@@ -599,7 +600,8 @@ void MainWindow::onActiveEditorChanged(editor::CodeEditor* editor) {
     connect(editor, &editor::CodeEditor::renameRequested, this, &MainWindow::onLspRenameRequested);
 
     // Connect Breakpoint changes
-    connect(editor, &editor::CodeEditor::breakpointToggled, this, [this, editor](int line, bool active) {\n        if (editor && editor->documentModel()) {
+    connect(editor, &editor::CodeEditor::breakpointToggled, this, [this, editor](int line, bool active) {
+        if (editor && editor->documentModel()) {
             if (active) m_debugger->addBreakpoint(editor->documentModel()->filePath(), line);
             else m_debugger->removeBreakpoint(editor->documentModel()->filePath(), line);
         }

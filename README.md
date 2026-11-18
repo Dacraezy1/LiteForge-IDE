@@ -12,7 +12,7 @@
   <a href="https://github.com/Dacraezy1/LiteForge-IDE/actions"><img src="https://img.shields.io/github/actions/workflow/status/Dacraezy1/LiteForge-IDE/ci.yml?branch=main&label=CI&style=flat-square" alt="CI Status"></a>
   <a href="https://github.com/Dacraezy1/LiteForge-IDE/releases"><img src="https://img.shields.io/github/v/release/Dacraezy1/LiteForge-IDE?style=flat-square&color=blue" alt="Latest Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/RAM-~35MB-informational?style=flat-square" alt="Memory Usage">
+  <img src="https://img.shields.io/badge/design-minimal%20%26%20unbloated-informational?style=flat-square" alt="Minimal & Unbloated">
   <img src="https://img.shields.io/badge/Startup-%3C40ms-success?style=flat-square" alt="Startup Time">
   <img src="https://img.shields.io/badge/Architectures-x86__64%20%7C%20aarch64-blueviolet?style=flat-square" alt="Supported Architectures">
 </p>
@@ -22,12 +22,12 @@
 ## Why LiteForge?
 
 Modern code editors and IDEs have become notoriously resource-intensive:
-- Electron-based editors frequently idle at **800 MB – 1.5 GB of RAM** and experience perceptible typing latency.
+- Electron-based editors frequently consume massive memory overhead and introduce perceptible typing latency.
 - Heavy IDE suites introduce bloated startup times, complex background telemetry, and gigabytes of disk overhead.
 
 **LiteForge is built from the ground up to solve this:**
 - **Instant Cold Boot**: Launches in under 40 milliseconds.
-- **Micro Footprint**: Maintains an idle footprint of approximately **35 MB RAM**.
+- **Minimal & Lean**: Designed strictly without bloat, keeping memory footprint low and resource usage minimal.
 - **100% Native**: Written in pure **C++20** and **Qt6**, compiling directly to optimized machine code for **x86_64** and **aarch64 (ARM64)**.
 - **Zero Telemetry, Zero Bloat**: No embedded Chromium, no JavaScript runtime, no background tracking.
 
