@@ -13,7 +13,7 @@ optdepends=('qt6-wayland: native Wayland support'
             'gdb: debugger integration')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 # Run `updpkgsums` once the v$pkgver tag exists on GitHub.
-sha256sums=('SKIP')
+sha256sums=('9d04a798428d094d2fb288b0333eb70a615a4142181d9eb09d2796017fe2c5f3')
 
 build() {
     cmake -B build -S "LiteForge-IDE-$pkgver" \

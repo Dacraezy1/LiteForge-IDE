@@ -29,4 +29,4 @@ package() {
 }
 
 # Run `abuild checksum` after the v$pkgver tag exists to fill this in.
-sha512sums="SKIP"
+sha512sums="2e0d0d2a18f42e7065c64409bb5c8da1579e60a653e905e19e14f4103ece38d7a1683a01103cefd15ac216a7d19f3879fdb55d8d935181ac51eb7374fbd27d91  liteforge-1.2.0.tar.gz"

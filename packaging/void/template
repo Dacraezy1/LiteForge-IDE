@@ -12,5 +12,5 @@ license="GPL-3.0-only"
 homepage="https://github.com/Dacraezy1/LiteForge-IDE"
 distfiles="https://github.com/Dacraezy1/LiteForge-IDE/archive/refs/tags/v${version}.tar.gz"
 # After the v1.2.0 tag exists: run `xgensum -i liteforge`
-checksum=0000000000000000000000000000000000000000000000000000000000000000
+checksum=9d04a798428d094d2fb288b0333eb70a615a4142181d9eb09d2796017fe2c5f3
 make_check_pre="env QT_QPA_PLATFORM=offscreen"
