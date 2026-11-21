@@ -31,6 +31,7 @@ protected:
 
 private:
     void setupRules();
+    void addWords(const QStringList& words, const QTextCharFormat& fmt);
     void setupCppRules();
     void setupPythonRules();
     void setupRustRules();

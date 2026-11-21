@@ -1,5 +1,6 @@
 #include "liteforge/core/FileUtils.hpp"
 #include <QFile>
+#include <QSaveFile>
 #include <QFileInfo>
 #include <QDir>
 #include <QDirIterator>
@@ -117,13 +118,43 @@ QString FileUtils::readFileUtf8(const QString& filePath, bool* ok) {
 }
 
 bool FileUtils::writeFileUtf8(const QString& filePath, const QString& content) {
+    return writeFileText(filePath, content, false, false);
+}
+
+QString FileUtils::readFileText(const QString& filePath, bool* ok, bool* hadCrlf, bool* hadBom) {
+    if (ok) *ok = false;
+    if (hadCrlf) *hadCrlf = false;
+    if (hadBom) *hadBom = false;
+
     QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
-        return false;
+    if (!file.open(QIODevice::ReadOnly)) return QString();
+    QByteArray data = file.readAll();
+    file.close();
+
+    bool bom = false;
+    if (data.size() >= 3 && static_cast<uchar>(data[0]) == 0xEF && static_cast<uchar>(data[1]) == 0xBB &&
+        static_cast<uchar>(data[2]) == 0xBF) {
+        bom = true;
+        data.remove(0, 3);
     }
-    QTextStream out(&file);
-    out << content;
-    return true;
+    const bool crlf = data.contains("\r\n");
+    if (crlf) data.replace("\r\n", "\n");
+
+    QString text = QString::fromUtf8(data);
+    if (ok) *ok = true;
+    if (hadCrlf) *hadCrlf = crlf;
+    if (hadBom) *hadBom = bom;
+    return text;
+}
+
+bool FileUtils::writeFileText(const QString& filePath, const QString& content, bool crlf, bool bom) {
+    QSaveFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly)) return false;
+    QByteArray data = content.toUtf8();
+    if (crlf) data.replace("\n", "\r\n");
+    if (bom) file.write("\xEF\xBB\xBF", 3);
+    file.write(data);
+    return file.commit();
 }
 
 QStringList FileUtils::findFiles(const QString& rootDir, 

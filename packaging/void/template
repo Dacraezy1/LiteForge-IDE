@@ -1,18 +1,16 @@
 # Template file for 'liteforge'
 pkgname=liteforge
-version=1.1.0
+version=1.2.0
 revision=1
 build_style=cmake
-configure_args="-DCMAKE_BUILD_TYPE=Release"
+configure_args="-DENABLE_TESTING=ON"
 hostmakedepends="cmake pkg-config"
 makedepends="qt6-base-devel"
 short_desc="Featherweight, zero-bloat native C++ IDE"
-maintainer="LiteForge Team <contact@liteforge.org>"
+maintainer="Dacraezy1 <https://github.com/Dacraezy1/LiteForge-IDE>"
 license="GPL-3.0-only"
 homepage="https://github.com/Dacraezy1/LiteForge-IDE"
 distfiles="https://github.com/Dacraezy1/LiteForge-IDE/archive/refs/tags/v${version}.tar.gz"
-checksum="SKIP"
-
-post_install() {
-    vlicense LICENSE
-}
+# After the v1.2.0 tag exists: run `xgensum -i liteforge`
+checksum=0000000000000000000000000000000000000000000000000000000000000000
+make_check_pre="env QT_QPA_PLATFORM=offscreen"

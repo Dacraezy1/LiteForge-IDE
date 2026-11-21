@@ -2,10 +2,7 @@
 
 #include <QString>
 #include <QStringList>
-#include <QFont>
-#include <QColor>
 #include <QByteArray>
-#include <memory>
 
 namespace liteforge::core {
 
@@ -23,6 +20,29 @@ struct EditorConfig {
     bool insertFinalNewline{true};
     int rulerColumn{80};
     bool showRuler{false};
+    bool minimap{false};
+    bool stickyScroll{true};
+    // Files larger than this (KiB) open without syntax highlighting / minimap
+    // to keep RAM and CPU flat. 0 disables the guard.
+    int largeFileKiB{2048};
+    // Auto-save: 0 = off, otherwise delay in milliseconds after last edit.
+    int autoSaveDelayMs{0};
+    bool autoSaveOnFocusLoss{false};
+};
+
+struct UiConfig {
+    QString fontFamily;            // empty = system default
+    int fontSize{0};               // points, 0 = system default
+    QString density{"normal"};     // compact | normal | comfortable
+    int cornerRadius{4};           // px, 0 = square
+    QString accentOverride;        // "#rrggbb" or empty = theme accent
+    bool showToolbar{true};
+    bool showStatusBar{true};
+};
+
+struct GeneralConfig {
+    bool restoreSession{true};
+    bool lspEnabled{true};
 };
 
 struct WindowConfig {
@@ -53,9 +73,14 @@ public:
     void load();
     void save();
 
-    // Configuration categories
     EditorConfig& editor() { return m_editor; }
     const EditorConfig& editor() const { return m_editor; }
+
+    UiConfig& ui() { return m_ui; }
+    const UiConfig& ui() const { return m_ui; }
+
+    GeneralConfig& general() { return m_general; }
+    const GeneralConfig& general() const { return m_general; }
 
     WindowConfig& window() { return m_window; }
     const WindowConfig& window() const { return m_window; }
@@ -63,7 +88,6 @@ public:
     BuildConfig& build() { return m_build; }
     const BuildConfig& build() const { return m_build; }
 
-    // Session state
     QString lastProjectPath() const { return m_lastProjectPath; }
     void setLastProjectPath(const QString& path) { m_lastProjectPath = path; }
 
@@ -79,12 +103,18 @@ public:
     QString activeTheme() const { return m_activeTheme; }
     void setActiveTheme(const QString& theme) { m_activeTheme = theme; }
 
+    // ~/.config/LiteForge (or platform equivalent). Created on demand.
+    QString configDir() const;
     QString configFilePath() const;
+    QString themesDir() const;
+    QString keybindingsFilePath() const;
 
 private:
     Config() = default;
 
     EditorConfig m_editor;
+    UiConfig m_ui;
+    GeneralConfig m_general;
     WindowConfig m_window;
     BuildConfig m_build;
 

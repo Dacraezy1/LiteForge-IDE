@@ -5,6 +5,10 @@
 
 namespace liteforge::lsp {
 
+namespace {
+inline QJsonObject dc_obj(const QJsonValue& v) { return v.toObject(); }
+}
+
 LSPClient::LSPClient(QObject* parent)
     : QObject(parent) {
 }
@@ -62,6 +66,7 @@ bool LSPClient::startServer(const QString& serverExecutable, const QStringList& 
         m_initialized = true;
         m_restartAttempts = 0;
         sendNotification("initialized", QJsonObject{});
+        emit initialized();
     });
 
     return true;
@@ -243,6 +248,16 @@ int LSPClient::requestRename(const QString& filePath, int line, int character, c
                     for (const auto& editVal : changes[uri].toArray()) {
                         edits.push_back(TextEdit::fromJson(editVal.toObject()));
                     }
+                }
+            }
+            // clangd, rust-analyzer, pyright... answer with documentChanges instead.
+            if (result.contains("documentChanges")) {
+                const QString uri = LSPProtocol::pathToUri(filePath);
+                for (const auto& dcVal : result["documentChanges"].toArray()) {
+                    const QJsonObject dc = dc_obj(dcVal);
+                    if (dc["textDocument"].toObject()["uri"].toString() != uri) continue;
+                    for (const auto& editVal : dc["edits"].toArray())
+                        edits.push_back(TextEdit::fromJson(editVal.toObject()));
                 }
             }
         }

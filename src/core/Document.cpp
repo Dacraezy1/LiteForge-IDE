@@ -80,6 +80,12 @@ QString Document::languageName() const {
     }
 }
 
+void Document::refreshDiskTimestamp() {
+    if (m_filePath.isEmpty()) return;
+    const QFileInfo fi(m_filePath);
+    if (fi.exists()) m_lastModifiedOnDisk = fi.lastModified();
+}
+
 bool Document::checkDiskModified() const {
     if (m_filePath.isEmpty()) return false;
     QFileInfo fi(m_filePath);

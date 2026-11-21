@@ -34,27 +34,27 @@ void DebuggerPanel::setupUi() {
     auto* toolbar = new QHBoxLayout();
     toolbar->setSpacing(4);
 
-    m_continueBtn = new QPushButton("▶ Continue", this);
+    m_continueBtn = new QPushButton("Continue", this);
     connect(m_continueBtn, &QPushButton::clicked, this, [this]() { if (m_debugger) m_debugger->continueExecution(); });
     toolbar->addWidget(m_continueBtn);
 
-    m_stepOverBtn = new QPushButton("↷ Step Over", this);
+    m_stepOverBtn = new QPushButton("Step Over", this);
     connect(m_stepOverBtn, &QPushButton::clicked, this, [this]() { if (m_debugger) m_debugger->stepOver(); });
     toolbar->addWidget(m_stepOverBtn);
 
-    m_stepIntoBtn = new QPushButton("⇲ Step Into", this);
+    m_stepIntoBtn = new QPushButton("Step Into", this);
     connect(m_stepIntoBtn, &QPushButton::clicked, this, [this]() { if (m_debugger) m_debugger->stepInto(); });
     toolbar->addWidget(m_stepIntoBtn);
 
-    m_stepOutBtn = new QPushButton("⇱ Step Out", this);
+    m_stepOutBtn = new QPushButton("Step Out", this);
     connect(m_stepOutBtn, &QPushButton::clicked, this, [this]() { if (m_debugger) m_debugger->stepOut(); });
     toolbar->addWidget(m_stepOutBtn);
 
-    m_pauseBtn = new QPushButton("⏸ Pause", this);
+    m_pauseBtn = new QPushButton("Pause", this);
     connect(m_pauseBtn, &QPushButton::clicked, this, [this]() { if (m_debugger) m_debugger->pauseExecution(); });
     toolbar->addWidget(m_pauseBtn);
 
-    m_stopBtn = new QPushButton("⏹ Stop", this);
+    m_stopBtn = new QPushButton("Stop", this);
     connect(m_stopBtn, &QPushButton::clicked, this, [this]() { if (m_debugger) m_debugger->stopDebugging(); });
     toolbar->addWidget(m_stopBtn);
 

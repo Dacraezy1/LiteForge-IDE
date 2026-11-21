@@ -2,71 +2,25 @@
 
 #include <QString>
 #include <QColor>
-#include <map>
+#include <QHash>
 #include <vector>
 
 namespace liteforge::core {
 
-enum class ThemePreset {
-    LiteForgeObsidian,
-    OneDarkPro,
-    TokyoNight,
-    MonokaiPro,
-    CyberpunkNeon
-};
-
 struct ThemeColors {
     // Window & Panels
-    QColor windowBg;
-    QColor editorBg;
-    QColor sidebarBg;
-    QColor bottomPanelBg;
-    QColor titleBarBg;
-    QColor menuBarBg;
-    QColor statusBarBg;
-
+    QColor windowBg, editorBg, sidebarBg, bottomPanelBg, titleBarBg, menuBarBg, statusBarBg;
     // Borders & Dividers
-    QColor border;
-    QColor splitter;
-
+    QColor border, splitter;
     // Tabs
-    QColor tabActiveBg;
-    QColor tabInactiveBg;
-    QColor tabHoverBg;
-    QColor tabActiveFg;
-    QColor tabInactiveFg;
-    QColor tabIndicator;
-
+    QColor tabActiveBg, tabInactiveBg, tabHoverBg, tabActiveFg, tabInactiveFg, tabIndicator;
     // Editor elements
-    QColor textNormal;
-    QColor textSelected;
-    QColor selectionBg;
-    QColor currentLineBg;
-    QColor lineNumberNormal;
-    QColor lineNumberActive;
-    QColor cursor;
-    QColor indentGuide;
-    QColor bracketMatchBg;
-    QColor bracketMatchBorder;
-
+    QColor textNormal, textSelected, selectionBg, currentLineBg, lineNumberNormal, lineNumberActive,
+           cursor, indentGuide, bracketMatchBg, bracketMatchBorder;
     // Syntax Highlighting
-    QColor keyword;
-    QColor type;
-    QColor function;
-    QColor string;
-    QColor number;
-    QColor comment;
-    QColor preprocessor;
-    QColor operatorColor;
-    QColor constant;
-    QColor variable;
-
+    QColor keyword, type, function, string, number, comment, preprocessor, operatorColor, constant, variable;
     // Status & Accent
-    QColor accent;
-    QColor success;
-    QColor warning;
-    QColor error;
-    QColor info;
+    QColor accent, success, warning, error, info;
 };
 
 class ThemeManager {
@@ -76,20 +30,35 @@ public:
     const ThemeColors& currentTheme() const { return m_currentColors; }
     QString currentThemeName() const { return m_currentThemeName; }
 
+    // Applies a built-in theme, or a user theme from <config>/themes/*.json.
+    // Unknown names fall back to "LiteForge Obsidian". The accent override from
+    // Config::ui().accentOverride is applied on top.
     void applyTheme(const QString& themeName);
-    void applyTheme(ThemePreset preset);
 
+    // Built-in themes first, then user themes (sorted).
     std::vector<QString> availableThemes() const;
+    std::vector<QString> builtinThemes() const;
+
+    // Re-scan <config>/themes. Only names + paths are kept in memory; a theme
+    // file is read when it is actually applied.
+    void reloadUserThemes();
+
+    // Writes the current theme as a ready-to-edit JSON template.
+    bool exportThemeTemplate(const QString& path) const;
+
+    // Parses a user theme file on top of its "base" theme. Returns false on error.
+    bool loadThemeFile(const QString& path, ThemeColors& out, QString* nameOut = nullptr) const;
 
     QString generateStyleSheet() const;
 
 private:
     ThemeManager();
+    bool loadBuiltin(const QString& name, ThemeColors& out) const;
+    void applyAccentOverride(ThemeColors& c) const;
 
-    void loadPreset(ThemePreset preset);
-
-    QString m_currentThemeName{"LiteForge Obsidian"};
+    QString m_currentThemeName;
     ThemeColors m_currentColors;
+    QHash<QString, QString> m_userThemes; // display name -> file path
 };
 
 } // namespace liteforge::core

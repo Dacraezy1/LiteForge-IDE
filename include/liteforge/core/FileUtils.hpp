@@ -24,7 +24,13 @@ public:
 
     static QString readFileUtf8(const QString& filePath, bool* ok = nullptr);
 
+    // Atomic write (temp file + rename). Never leaves a half-written file behind.
     static bool writeFileUtf8(const QString& filePath, const QString& content);
+
+    // Text IO that round-trips line endings and a UTF-8 BOM. On read, CRLF is
+    // normalised to LF in the returned string and reported through hadCrlf.
+    static QString readFileText(const QString& filePath, bool* ok, bool* hadCrlf, bool* hadBom);
+    static bool writeFileText(const QString& filePath, const QString& content, bool crlf, bool bom);
 
     static QStringList findFiles(const QString& rootDir, 
                                  const QStringList& filters = QStringList(),

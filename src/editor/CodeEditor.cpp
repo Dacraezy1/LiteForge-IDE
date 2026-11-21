@@ -17,11 +17,14 @@ namespace liteforge::editor {
 CodeEditor::CodeEditor(QWidget* parent)
     : QPlainTextEdit(parent) {
     m_lineNumberGutter = new LineNumberGutter(this);
-    m_highlighter = new SyntaxHighlighter(document());
-    m_findReplaceWidget = new FindReplaceWidget(this, this);
+    // The syntax highlighter and the find/replace bar are created on demand
+    // (see setHighlightLanguage / showFindBar): plain-text and untouched
+    // editors never pay for them.
 
     // Default editor config
     const auto& cfg = core::Config::instance().editor();
+    m_minimapEnabled = cfg.minimap;
+    m_stickyScrollEnabled = cfg.stickyScroll;
     m_baseFontSize = cfg.fontSize;
     m_tabWidth = cfg.tabWidth;
     m_useSpaces = cfg.useSpacesForTabs;
@@ -46,17 +49,38 @@ CodeEditor::CodeEditor(QWidget* parent)
 CodeEditor::~CodeEditor() = default;
 
 void CodeEditor::setDocumentModel(std::shared_ptr<core::Document> doc) {
-    m_document = doc;
-    if (m_document) {
-        m_highlighter->setLanguage(m_document->language());
-        connect(m_document.get(), &core::Document::languageChanged, this, [this](core::Language lang) {
-            m_highlighter->setLanguage(lang);
-        });
+    m_document = std::move(doc);
+    if (!m_document) return;
+
+    // Huge files: no highlighter, no minimap. Keeps RAM and CPU flat.
+    const qint64 limitKiB = core::Config::instance().editor().largeFileKiB;
+    m_largeFile = limitKiB > 0 && document()->characterCount() > limitKiB * 1024;
+    if (m_largeFile && m_minimapEnabled) {
+        m_minimapEnabled = false;
+        updateLineNumberGutterWidth(0);
+    }
+
+    setHighlightLanguage(m_document->language());
+    connect(m_document.get(), &core::Document::languageChanged, this, [this](core::Language lang) {
+        setHighlightLanguage(lang);
+    });
+}
+
+void CodeEditor::setHighlightLanguage(core::Language lang) {
+    if (m_largeFile || lang == core::Language::PlainText) {
+        delete m_highlighter;   // clears its formats from the document
+        m_highlighter = nullptr;
+        return;
+    }
+    if (!m_highlighter) {
+        m_highlighter = new SyntaxHighlighter(document(), lang);
+    } else {
+        m_highlighter->setLanguage(lang);
     }
 }
 
 void CodeEditor::applyTheme(const core::ThemeColors& theme) {
-    m_highlighter->updateTheme(theme);
+    if (m_highlighter) m_highlighter->updateTheme(theme);
 
     QPalette p = palette();
     p.setColor(QPalette::Base, theme.editorBg);
@@ -178,9 +202,15 @@ void CodeEditor::lineNumberGutterPaintEvent(QPaintEvent* event) {
             if (lineText.endsWith('{') || lineText.endsWith(':')) {
                 painter.setPen(theme.lineNumberNormal);
                 bool folded = isBlockFolded(blockNumber);
-                QString chevron = folded ? "▶" : "▼";
-                painter.drawText(m_lineNumberGutter->width() - 14, top, 12, fontMetrics().height(),
-                                 Qt::AlignCenter, chevron);
+                // Drawn as a tiny triangle: no glyph lookup, no font fallback.
+                const int cx = m_lineNumberGutter->width() - 8;
+                const int cy = top + fontMetrics().height() / 2;
+                QPolygon tri;
+                if (folded) tri << QPoint(cx - 2, cy - 4) << QPoint(cx - 2, cy + 4) << QPoint(cx + 3, cy);
+                else        tri << QPoint(cx - 4, cy - 2) << QPoint(cx + 4, cy - 2) << QPoint(cx, cy + 3);
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(theme.lineNumberNormal);
+                painter.drawPolygon(tri);
             }
         }
 
@@ -958,7 +988,7 @@ void CodeEditor::unindentSelection() {
 }
 
 void CodeEditor::showFindBar(bool replaceMode) {
-    if (!m_findReplaceWidget) return;
+    if (!m_findReplaceWidget) m_findReplaceWidget = new FindReplaceWidget(this, this);
 
     QString initial = textCursor().hasSelection() ? textCursor().selectedText() : QString();
     if (replaceMode) {

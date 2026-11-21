@@ -1,6 +1,40 @@
 #include "liteforge/editor/SyntaxHighlighter.hpp"
+#include <QHash>
+#include <QStringList>
 
 namespace liteforge::editor {
+
+namespace {
+
+// Compiled patterns are shared between every editor/highlighter instance:
+// QRegularExpression is implicitly shared, so N open C++ files cost one set of
+// compiled PCRE programs instead of N.
+QRegularExpression rx(const QString& pattern, QRegularExpression::PatternOptions opts = QRegularExpression::NoPatternOption) {
+    static QHash<QString, QRegularExpression> cache;
+    const QString key = QString::number(static_cast<int>(opts)) + QLatin1Char(':') + pattern;
+    auto it = cache.constFind(key);
+    if (it != cache.constEnd()) return *it;
+    QRegularExpression re(pattern, opts);
+    cache.insert(key, re);
+    return re;
+}
+
+// Lines longer than this are only highlighted up to this many characters
+// (minified JS / generated data would otherwise stall the UI).
+constexpr int kMaxHighlightedLine = 4000;
+
+} // namespace
+
+// One alternation per keyword group instead of one regex per keyword:
+// ~100 rules per C++ document become 2, and each line is scanned 50x fewer times.
+void SyntaxHighlighter::addWords(const QStringList& words, const QTextCharFormat& fmt) {
+    if (words.isEmpty()) return;
+    HighlightingRule rule;
+    rule.pattern = rx(QStringLiteral("\\b(?:") + words.join(QLatin1Char('|')) + QStringLiteral(")\\b"));
+    rule.format = fmt;
+    m_rules.push_back(rule);
+}
+
 
 SyntaxHighlighter::SyntaxHighlighter(QTextDocument* parent, core::Language lang)
     : QSyntaxHighlighter(parent), m_language(lang) {
@@ -77,13 +111,13 @@ void SyntaxHighlighter::setupRules() {
 void SyntaxHighlighter::setupCppRules() {
     // Numbers
     HighlightingRule numRule;
-    numRule.pattern = QRegularExpression(QStringLiteral("\\b(0x[0-9a-fA-F]+|0b[01]+|[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?(f|F|u|U|l|L|ll|LL)?)\\b"));
+    numRule.pattern = rx(QStringLiteral("\\b(0x[0-9a-fA-F]+|0b[01]+|[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?(f|F|u|U|l|L|ll|LL)?)\\b"));
     numRule.format = m_numberFormat;
     m_rules.push_back(numRule);
 
     // Preprocessor
     HighlightingRule prepRule;
-    prepRule.pattern = QRegularExpression(QStringLiteral("^[ \t]*#[a-zA-Z_]+"));
+    prepRule.pattern = rx(QStringLiteral("^[ \t]*#[a-zA-Z_]+"));
     prepRule.format = m_preprocessorFormat;
     m_rules.push_back(prepRule);
 
@@ -105,12 +139,7 @@ void SyntaxHighlighter::setupCppRules() {
         "while", "xor", "xor_eq", "override", "final"
     };
 
-    for (const QString& kw : cppKeywords) {
-        HighlightingRule rule;
-        rule.pattern = QRegularExpression(QStringLiteral("\\b") + kw + QStringLiteral("\\b"));
-        rule.format = m_keywordFormat;
-        m_rules.push_back(rule);
-    }
+    addWords(cppKeywords, m_keywordFormat);
 
     // Common Types
     static const QStringList cppTypes = {
@@ -122,46 +151,41 @@ void SyntaxHighlighter::setupCppRules() {
         "QString", "QByteArray", "QVector", "QList", "QMap", "QWidget", "QObject"
     };
 
-    for (const QString& t : cppTypes) {
-        HighlightingRule rule;
-        rule.pattern = QRegularExpression(QStringLiteral("\\b") + t + QStringLiteral("\\b"));
-        rule.format = m_typeFormat;
-        m_rules.push_back(rule);
-    }
+    addWords(cppTypes, m_typeFormat);
 
     // Functions: identifier followed by '('
     HighlightingRule fnRule;
-    fnRule.pattern = QRegularExpression(QStringLiteral("\\b[a-zA-Z_][a-zA-Z0-9_]*(?=\\s*\\()"));
+    fnRule.pattern = rx(QStringLiteral("\\b[a-zA-Z_][a-zA-Z0-9_]*(?=\\s*\\()"));
     fnRule.format = m_functionFormat;
     m_rules.push_back(fnRule);
 
     // Strings
     HighlightingRule strRule;
-    strRule.pattern = QRegularExpression(QStringLiteral("\".*?\""));
+    strRule.pattern = rx(QStringLiteral("\".*?\""));
     strRule.format = m_stringFormat;
     m_rules.push_back(strRule);
 
     // Characters
     HighlightingRule charRule;
-    charRule.pattern = QRegularExpression(QStringLiteral("'.*?'"));
+    charRule.pattern = rx(QStringLiteral("'.*?'"));
     charRule.format = m_stringFormat;
     m_rules.push_back(charRule);
 
     // Single-line comment
     HighlightingRule commentRule;
-    commentRule.pattern = QRegularExpression(QStringLiteral("//[^\n]*"));
+    commentRule.pattern = rx(QStringLiteral("//[^\n]*"));
     commentRule.format = m_singleLineCommentFormat;
     m_rules.push_back(commentRule);
 
     // Multi-line comments
-    m_commentStartPattern = QRegularExpression(QStringLiteral("/\\*"));
-    m_commentEndPattern = QRegularExpression(QStringLiteral("\\*/"));
+    m_commentStartPattern = rx(QStringLiteral("/\\*"));
+    m_commentEndPattern = rx(QStringLiteral("\\*/"));
 }
 
 void SyntaxHighlighter::setupPythonRules() {
     // Numbers
     HighlightingRule numRule;
-    numRule.pattern = QRegularExpression(QStringLiteral("\\b([0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?|0x[0-9a-fA-F]+|0b[01]+)\\b"));
+    numRule.pattern = rx(QStringLiteral("\\b([0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?|0x[0-9a-fA-F]+|0b[01]+)\\b"));
     numRule.format = m_numberFormat;
     m_rules.push_back(numRule);
 
@@ -174,12 +198,7 @@ void SyntaxHighlighter::setupPythonRules() {
         "True", "False", "None", "self"
     };
 
-    for (const QString& kw : pyKeywords) {
-        HighlightingRule rule;
-        rule.pattern = QRegularExpression(QStringLiteral("\\b") + kw + QStringLiteral("\\b"));
-        rule.format = m_keywordFormat;
-        m_rules.push_back(rule);
-    }
+    addWords(pyKeywords, m_keywordFormat);
 
     // Builtins
     static const QStringList pyBuiltins = {
@@ -190,34 +209,29 @@ void SyntaxHighlighter::setupPythonRules() {
         "tuple", "type", "zip"
     };
 
-    for (const QString& b : pyBuiltins) {
-        HighlightingRule rule;
-        rule.pattern = QRegularExpression(QStringLiteral("\\b") + b + QStringLiteral("\\b"));
-        rule.format = m_typeFormat;
-        m_rules.push_back(rule);
-    }
+    addWords(pyBuiltins, m_typeFormat);
 
     // Decorators: @decorator
     HighlightingRule decoRule;
-    decoRule.pattern = QRegularExpression(QStringLiteral("@[a-zA-Z_][a-zA-Z0-9_\\.]*"));
+    decoRule.pattern = rx(QStringLiteral("@[a-zA-Z_][a-zA-Z0-9_\\.]*"));
     decoRule.format = m_preprocessorFormat;
     m_rules.push_back(decoRule);
 
     // Functions
     HighlightingRule fnRule;
-    fnRule.pattern = QRegularExpression(QStringLiteral("\\b[a-zA-Z_][a-zA-Z0-9_]*(?=\\s*\\()"));
+    fnRule.pattern = rx(QStringLiteral("\\b[a-zA-Z_][a-zA-Z0-9_]*(?=\\s*\\()"));
     fnRule.format = m_functionFormat;
     m_rules.push_back(fnRule);
 
     // Strings
     HighlightingRule strRule;
-    strRule.pattern = QRegularExpression(QStringLiteral("(\"\"\"[^\"]*\"\"\"|'''[^']*'''|\"[^\"]*\"|'[^']*')"));
+    strRule.pattern = rx(QStringLiteral("(\"\"\"[^\"]*\"\"\"|'''[^']*'''|\"[^\"]*\"|'[^']*')"));
     strRule.format = m_stringFormat;
     m_rules.push_back(strRule);
 
     // Comments
     HighlightingRule commentRule;
-    commentRule.pattern = QRegularExpression(QStringLiteral("#[^\n]*"));
+    commentRule.pattern = rx(QStringLiteral("#[^\n]*"));
     commentRule.format = m_singleLineCommentFormat;
     m_rules.push_back(commentRule);
 }
@@ -225,7 +239,7 @@ void SyntaxHighlighter::setupPythonRules() {
 void SyntaxHighlighter::setupRustRules() {
     // Numbers
     HighlightingRule numRule;
-    numRule.pattern = QRegularExpression(QStringLiteral("\\b([0-9][0-9_]*(\\.[0-9][0-9_]*)?([eE][+-]?[0-9_]+)?([iuf](8|16|32|64|128|size))?|0x[0-9a-fA-F_]+|0b[01_]+)\\b"));
+    numRule.pattern = rx(QStringLiteral("\\b([0-9][0-9_]*(\\.[0-9][0-9_]*)?([eE][+-]?[0-9_]+)?([iuf](8|16|32|64|128|size))?|0x[0-9a-fA-F_]+|0b[01_]+)\\b"));
     numRule.format = m_numberFormat;
     m_rules.push_back(numRule);
 
@@ -238,12 +252,7 @@ void SyntaxHighlighter::setupRustRules() {
         "unsafe", "use", "where", "while"
     };
 
-    for (const QString& kw : rustKeywords) {
-        HighlightingRule rule;
-        rule.pattern = QRegularExpression(QStringLiteral("\\b") + kw + QStringLiteral("\\b"));
-        rule.format = m_keywordFormat;
-        m_rules.push_back(rule);
-    }
+    addWords(rustKeywords, m_keywordFormat);
 
     // Types
     static const QStringList rustTypes = {
@@ -252,39 +261,34 @@ void SyntaxHighlighter::setupRustRules() {
         "Option", "Result", "Some", "None", "Ok", "Err", "Box", "Rc", "Arc", "Vec", "String"
     };
 
-    for (const QString& t : rustTypes) {
-        HighlightingRule rule;
-        rule.pattern = QRegularExpression(QStringLiteral("\\b") + t + QStringLiteral("\\b"));
-        rule.format = m_typeFormat;
-        m_rules.push_back(rule);
-    }
+    addWords(rustTypes, m_typeFormat);
 
     // Macros: identifier!
     HighlightingRule macroRule;
-    macroRule.pattern = QRegularExpression(QStringLiteral("\\b[a-zA-Z_][a-zA-Z0-9_]*!"));
+    macroRule.pattern = rx(QStringLiteral("\\b[a-zA-Z_][a-zA-Z0-9_]*!"));
     macroRule.format = m_preprocessorFormat;
     m_rules.push_back(macroRule);
 
     // Strings
     HighlightingRule strRule;
-    strRule.pattern = QRegularExpression(QStringLiteral("\".*?\""));
+    strRule.pattern = rx(QStringLiteral("\".*?\""));
     strRule.format = m_stringFormat;
     m_rules.push_back(strRule);
 
     // Comments
     HighlightingRule commentRule;
-    commentRule.pattern = QRegularExpression(QStringLiteral("//[^\n]*"));
+    commentRule.pattern = rx(QStringLiteral("//[^\n]*"));
     commentRule.format = m_singleLineCommentFormat;
     m_rules.push_back(commentRule);
 
-    m_commentStartPattern = QRegularExpression(QStringLiteral("/\\*"));
-    m_commentEndPattern = QRegularExpression(QStringLiteral("\\*/"));
+    m_commentStartPattern = rx(QStringLiteral("/\\*"));
+    m_commentEndPattern = rx(QStringLiteral("\\*/"));
 }
 
 void SyntaxHighlighter::setupJavaScriptRules() {
     // Numbers
     HighlightingRule numRule;
-    numRule.pattern = QRegularExpression(QStringLiteral("\\b[0-9]+(\\.[0-9]+)?\\b"));
+    numRule.pattern = rx(QStringLiteral("\\b[0-9]+(\\.[0-9]+)?\\b"));
     numRule.format = m_numberFormat;
     m_rules.push_back(numRule);
 
@@ -297,51 +301,46 @@ void SyntaxHighlighter::setupJavaScriptRules() {
         "true", "false", "null", "undefined", "interface", "type", "declare"
     };
 
-    for (const QString& kw : jsKeywords) {
-        HighlightingRule rule;
-        rule.pattern = QRegularExpression(QStringLiteral("\\b") + kw + QStringLiteral("\\b"));
-        rule.format = m_keywordFormat;
-        m_rules.push_back(rule);
-    }
+    addWords(jsKeywords, m_keywordFormat);
 
     // Functions
     HighlightingRule fnRule;
-    fnRule.pattern = QRegularExpression(QStringLiteral("\\b[a-zA-Z_$][a-zA-Z0-9_$]*(?=\\s*\\()"));
+    fnRule.pattern = rx(QStringLiteral("\\b[a-zA-Z_$][a-zA-Z0-9_$]*(?=\\s*\\()"));
     fnRule.format = m_functionFormat;
     m_rules.push_back(fnRule);
 
     // Strings & Template Literals
     HighlightingRule strRule;
-    strRule.pattern = QRegularExpression(QStringLiteral("(\"[^\"]*\"|'[^']*'|`[^`]*`)"));
+    strRule.pattern = rx(QStringLiteral("(\"[^\"]*\"|'[^']*'|`[^`]*`)"));
     strRule.format = m_stringFormat;
     m_rules.push_back(strRule);
 
     // Comments
     HighlightingRule commentRule;
-    commentRule.pattern = QRegularExpression(QStringLiteral("//[^\n]*"));
+    commentRule.pattern = rx(QStringLiteral("//[^\n]*"));
     commentRule.format = m_singleLineCommentFormat;
     m_rules.push_back(commentRule);
 
-    m_commentStartPattern = QRegularExpression(QStringLiteral("/\\*"));
-    m_commentEndPattern = QRegularExpression(QStringLiteral("\\*/"));
+    m_commentStartPattern = rx(QStringLiteral("/\\*"));
+    m_commentEndPattern = rx(QStringLiteral("\\*/"));
 }
 
 void SyntaxHighlighter::setupJsonRules() {
     // Keys
     HighlightingRule keyRule;
-    keyRule.pattern = QRegularExpression(QStringLiteral("\"[^\"]+\"\\s*:"));
+    keyRule.pattern = rx(QStringLiteral("\"[^\"]+\"\\s*:"));
     keyRule.format = m_keywordFormat;
     m_rules.push_back(keyRule);
 
     // Strings
     HighlightingRule strRule;
-    strRule.pattern = QRegularExpression(QStringLiteral(":\\s*\"[^\"]*\""));
+    strRule.pattern = rx(QStringLiteral(":\\s*\"[^\"]*\""));
     strRule.format = m_stringFormat;
     m_rules.push_back(strRule);
 
     // Numbers & Booleans
     HighlightingRule numRule;
-    numRule.pattern = QRegularExpression(QStringLiteral("\\b(-?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?|true|false|null)\\b"));
+    numRule.pattern = rx(QStringLiteral("\\b(-?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?|true|false|null)\\b"));
     numRule.format = m_numberFormat;
     m_rules.push_back(numRule);
 }
@@ -349,54 +348,54 @@ void SyntaxHighlighter::setupJsonRules() {
 void SyntaxHighlighter::setupMarkdownRules() {
     // Headers #
     HighlightingRule hRule;
-    hRule.pattern = QRegularExpression(QStringLiteral("^#{1,6}\\s+.*$"));
+    hRule.pattern = rx(QStringLiteral("^#{1,6}\\s+.*$"));
     hRule.format = m_keywordFormat;
     m_rules.push_back(hRule);
 
     // Bold / Italic
     HighlightingRule boldRule;
-    boldRule.pattern = QRegularExpression(QStringLiteral("(\\*\\*.*?\\*\\*|__.*?__)"));
+    boldRule.pattern = rx(QStringLiteral("(\\*\\*.*?\\*\\*|__.*?__)"));
     boldRule.format = m_constantFormat;
     m_rules.push_back(boldRule);
 
     // Inline Code
     HighlightingRule codeRule;
-    codeRule.pattern = QRegularExpression(QStringLiteral("`[^`]+`"));
+    codeRule.pattern = rx(QStringLiteral("`[^`]+`"));
     codeRule.format = m_typeFormat;
     m_rules.push_back(codeRule);
 
     // Links [text](url)
     HighlightingRule linkRule;
-    linkRule.pattern = QRegularExpression(QStringLiteral("\\[.*?\\]\\(.*?\\)"));
+    linkRule.pattern = rx(QStringLiteral("\\[.*?\\]\\(.*?\\)"));
     linkRule.format = m_functionFormat;
     m_rules.push_back(linkRule);
 }
 
 void SyntaxHighlighter::setupCMakeRules() {
     HighlightingRule cmdRule;
-    cmdRule.pattern = QRegularExpression(QStringLiteral("\\b[a-zA-Z_][a-zA-Z0-9_]*(?=\\s*\\()"), QRegularExpression::CaseInsensitiveOption);
+    cmdRule.pattern = rx(QStringLiteral("\\b[a-zA-Z_][a-zA-Z0-9_]*(?=\\s*\\()"), QRegularExpression::CaseInsensitiveOption);
     cmdRule.format = m_keywordFormat;
     m_rules.push_back(cmdRule);
 
     HighlightingRule varRule;
-    varRule.pattern = QRegularExpression(QStringLiteral("\\$\\{[a-zA-Z0-9_]+\\}"));
+    varRule.pattern = rx(QStringLiteral("\\$\\{[a-zA-Z0-9_]+\\}"));
     varRule.format = m_typeFormat;
     m_rules.push_back(varRule);
 
     HighlightingRule strRule;
-    strRule.pattern = QRegularExpression(QStringLiteral("\".*?\""));
+    strRule.pattern = rx(QStringLiteral("\".*?\""));
     strRule.format = m_stringFormat;
     m_rules.push_back(strRule);
 
     HighlightingRule commentRule;
-    commentRule.pattern = QRegularExpression(QStringLiteral("#[^\n]*"));
+    commentRule.pattern = rx(QStringLiteral("#[^\n]*"));
     commentRule.format = m_singleLineCommentFormat;
     m_rules.push_back(commentRule);
 }
 
 void SyntaxHighlighter::setupShellRules() {
     HighlightingRule varRule;
-    varRule.pattern = QRegularExpression(QStringLiteral("\\$[a-zA-Z0-9_]+|\\$\\{[a-zA-Z0-9_]+\\}"));
+    varRule.pattern = rx(QStringLiteral("\\$[a-zA-Z0-9_]+|\\$\\{[a-zA-Z0-9_]+\\}"));
     varRule.format = m_typeFormat;
     m_rules.push_back(varRule);
 
@@ -405,29 +404,27 @@ void SyntaxHighlighter::setupShellRules() {
         "until", "do", "done", "in", "function", "select", "return", "exit", "echo"
     };
 
-    for (const QString& kw : shKeywords) {
-        HighlightingRule rule;
-        rule.pattern = QRegularExpression(QStringLiteral("\\b") + kw + QStringLiteral("\\b"));
-        rule.format = m_keywordFormat;
-        m_rules.push_back(rule);
-    }
+    addWords(shKeywords, m_keywordFormat);
 
     HighlightingRule strRule;
-    strRule.pattern = QRegularExpression(QStringLiteral("(\"[^\"]*\"|'[^']*')"));
+    strRule.pattern = rx(QStringLiteral("(\"[^\"]*\"|'[^']*')"));
     strRule.format = m_stringFormat;
     m_rules.push_back(strRule);
 
     HighlightingRule commentRule;
-    commentRule.pattern = QRegularExpression(QStringLiteral("#[^\n]*"));
+    commentRule.pattern = rx(QStringLiteral("#[^\n]*"));
     commentRule.format = m_singleLineCommentFormat;
     m_rules.push_back(commentRule);
 }
 
-void SyntaxHighlighter::highlightBlock(const QString& text) {
+void SyntaxHighlighter::highlightBlock(const QString& fullText) {
+    const bool clipped = fullText.size() > kMaxHighlightedLine;
+    const QString text = clipped ? fullText.left(kMaxHighlightedLine) : fullText;
+
     for (const auto& rule : m_rules) {
         QRegularExpressionMatchIterator matchIterator = rule.pattern.globalMatch(text);
         while (matchIterator.hasNext()) {
-            QRegularExpressionMatch match = matchIterator.next();
+            const QRegularExpressionMatch match = matchIterator.next();
             setFormat(match.capturedStart(), match.capturedLength(), rule.format);
         }
     }
@@ -444,7 +441,7 @@ void SyntaxHighlighter::highlightBlock(const QString& text) {
 
     while (startIndex >= 0) {
         QRegularExpressionMatch endMatch;
-        int endIndex = text.indexOf(m_commentEndPattern, startIndex, &endMatch);
+        const int endIndex = text.indexOf(m_commentEndPattern, startIndex, &endMatch);
         int commentLength;
         if (endIndex == -1) {
             setCurrentBlockState(1);

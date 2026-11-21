@@ -29,3 +29,8 @@ Makefile
 config.json
 *.swp
 *~
+
+# packaging scratch
+AppDir/
+.appimage-tools/
+*.AppImage

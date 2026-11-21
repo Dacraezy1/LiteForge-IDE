@@ -63,6 +63,7 @@ public:
     bool isStickyScrollEnabled() const { return m_stickyScrollEnabled; }
     void setWordWrap(bool wrap);
     bool isWordWrap() const;
+    bool isLargeFile() const { return m_largeFile; }
 
     // Find and Replace
     void showFindBar(bool replaceMode = false);
@@ -102,6 +103,7 @@ private slots:
     void onCursorPositionChanged();
 
 private:
+    void setHighlightLanguage(core::Language lang);
     void matchBrackets();
     void autoIndent(QKeyEvent* event);
     bool handleAutoClosingBrackets(QKeyEvent* event);
@@ -122,6 +124,7 @@ private:
     std::set<int> m_breakpoints;
 
     // Features
+    bool m_largeFile{false};
     bool m_minimapEnabled{false};
     bool m_stickyScrollEnabled{true};
     int m_baseFontSize{13};

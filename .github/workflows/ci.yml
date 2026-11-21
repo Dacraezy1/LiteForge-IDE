@@ -8,44 +8,59 @@ on:
 
 jobs:
   build-and-test:
-    name: Build & Test (${{ matrix.arch }})
+    name: ${{ matrix.compiler }} / ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
-            arch: x86_64
-          - os: ubuntu-24.04-arm
-            arch: aarch64
+          - { os: ubuntu-24.04,     arch: x86_64,  compiler: g++ }
+          - { os: ubuntu-24.04,     arch: x86_64,  compiler: clang++ }
+          - { os: ubuntu-24.04-arm, arch: aarch64, compiler: g++ }
 
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install System Dependencies
+      - name: Install dependencies
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake g++ qt6-base-dev libgl1-mesa-dev
+          sudo apt-get install -y --no-install-recommends cmake g++ clang qt6-base-dev libgl1-mesa-dev
 
-      - name: Configure CMake
-        run: |
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_STANDARD=20
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
 
-      - name: Compile LiteForge
-        run: |
-          cmake --build build --parallel $(nproc)
+      - name: Build
+        run: cmake --build build --parallel $(nproc)
 
-      - name: Run Test Suite
-        run: |
-          ctest --test-dir build --output-on-failure
+      - name: Test (headless)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure
 
-      - name: Test Package Generation (CPack)
+      - name: Package smoke test (CPack)
         run: |
           cd build
           cpack -G TGZ
           cpack -G DEB
+
+  sanitizers:
+    name: ASan + UBSan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++ qt6-base-dev libgl1-mesa-dev
+      - name: Build and test with sanitizers
+        env:
+          QT_QPA_PLATFORM: offscreen
+          ASAN_OPTIONS: detect_leaks=0
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          cmake --build build --parallel $(nproc)
+          ctest --test-dir build --output-on-failure

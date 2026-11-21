@@ -1,6 +1,136 @@
 #include "liteforge/core/Theme.hpp"
+#include "liteforge/core/Config.hpp"
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QSaveFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <algorithm>
+#include <array>
 
 namespace liteforge::core {
+
+namespace {
+
+constexpr int kFieldCount = 40;
+
+struct FieldDef { const char* key; QColor ThemeColors::* member; };
+
+// Order MUST match the color tables below.
+const std::array<FieldDef, kFieldCount> kFields = {{
+    {"windowBg", &ThemeColors::windowBg},
+    {"editorBg", &ThemeColors::editorBg},
+    {"sidebarBg", &ThemeColors::sidebarBg},
+    {"bottomPanelBg", &ThemeColors::bottomPanelBg},
+    {"titleBarBg", &ThemeColors::titleBarBg},
+    {"menuBarBg", &ThemeColors::menuBarBg},
+    {"statusBarBg", &ThemeColors::statusBarBg},
+    {"border", &ThemeColors::border},
+    {"splitter", &ThemeColors::splitter},
+    {"tabActiveBg", &ThemeColors::tabActiveBg},
+    {"tabInactiveBg", &ThemeColors::tabInactiveBg},
+    {"tabHoverBg", &ThemeColors::tabHoverBg},
+    {"tabActiveFg", &ThemeColors::tabActiveFg},
+    {"tabInactiveFg", &ThemeColors::tabInactiveFg},
+    {"tabIndicator", &ThemeColors::tabIndicator},
+    {"textNormal", &ThemeColors::textNormal},
+    {"textSelected", &ThemeColors::textSelected},
+    {"selectionBg", &ThemeColors::selectionBg},
+    {"currentLineBg", &ThemeColors::currentLineBg},
+    {"lineNumberNormal", &ThemeColors::lineNumberNormal},
+    {"lineNumberActive", &ThemeColors::lineNumberActive},
+    {"cursor", &ThemeColors::cursor},
+    {"indentGuide", &ThemeColors::indentGuide},
+    {"bracketMatchBg", &ThemeColors::bracketMatchBg},
+    {"bracketMatchBorder", &ThemeColors::bracketMatchBorder},
+    {"keyword", &ThemeColors::keyword},
+    {"type", &ThemeColors::type},
+    {"function", &ThemeColors::function},
+    {"string", &ThemeColors::string},
+    {"number", &ThemeColors::number},
+    {"comment", &ThemeColors::comment},
+    {"preprocessor", &ThemeColors::preprocessor},
+    {"operatorColor", &ThemeColors::operatorColor},
+    {"constant", &ThemeColors::constant},
+    {"variable", &ThemeColors::variable},
+    {"accent", &ThemeColors::accent},
+    {"success", &ThemeColors::success},
+    {"warning", &ThemeColors::warning},
+    {"error", &ThemeColors::error},
+    {"info", &ThemeColors::info},
+}};
+
+struct BuiltinDef { const char* name; std::array<unsigned, kFieldCount> rgb; };
+
+const std::array<BuiltinDef, 5> kBuiltins = {{
+    {"LiteForge Obsidian", {0x141416, 0x18181b, 0x121214, 0x121214, 0x0f0f10, 0x141416, 0x0f0f10, 0x27272a, 0x27272a, 0x18181b, 0x121214, 0x1f1f23, 0xf4f4f5, 0x71717a, 0x38bdf8, 0xe4e4e7, 0xffffff, 0x2b3245, 0x202024, 0x52525b, 0x38bdf8, 0x38bdf8, 0x27272a, 0x334155, 0x38bdf8, 0xc084fc, 0x38bdf8, 0x60a5fa, 0x4ade80, 0xfb923c, 0x71717a, 0xf43f5e, 0x94a3b8, 0xf59e0b, 0xe4e4e7, 0x38bdf8, 0x34d399, 0xfbbf24, 0xf87171, 0x38bdf8}},
+    {"One Dark Pro", {0x21252b, 0x282c34, 0x21252b, 0x21252b, 0x1e2227, 0x21252b, 0x1e2227, 0x181a1f, 0x181a1f, 0x282c34, 0x21252b, 0x2c313a, 0xabb2bf, 0x5c6370, 0x61afef, 0xabb2bf, 0xffffff, 0x3e4451, 0x2c313c, 0x4b5263, 0xabb2bf, 0x528bff, 0x3b4048, 0x515a6b, 0x61afef, 0xc678dd, 0xe5c07b, 0x61afef, 0x98c379, 0xd19a66, 0x5c6370, 0xe06c75, 0x56b6c2, 0xd19a66, 0xe06c75, 0x61afef, 0x98c379, 0xe5c07b, 0xe06c75, 0x56b6c2}},
+    {"Tokyo Night", {0x16161e, 0x1a1b26, 0x16161e, 0x16161e, 0x13141c, 0x16161e, 0x13141c, 0x101014, 0x292e42, 0x1a1b26, 0x16161e, 0x24283b, 0xa9b1d6, 0x565f89, 0x7aa2f7, 0xa9b1d6, 0xffffff, 0x33467c, 0x1f2335, 0x363b54, 0x7aa2f7, 0xc0caf5, 0x292e42, 0x3b4261, 0x7aa2f7, 0xbb9af7, 0x2ac3de, 0x7aa2f7, 0x9ece6a, 0xff9e64, 0x565f89, 0xf7768e, 0x89ddff, 0xff9e64, 0xe0af68, 0x7aa2f7, 0x9ece6a, 0xe0af68, 0xf7768e, 0x2ac3de}},
+    {"Monokai Pro", {0x221f22, 0x2d2a2e, 0x221f22, 0x221f22, 0x19181a, 0x221f22, 0x19181a, 0x19181a, 0x3a383b, 0x2d2a2e, 0x221f22, 0x353236, 0xfcfcfa, 0x727072, 0xffd866, 0xfcfcfa, 0xffffff, 0x49464e, 0x353337, 0x5b595c, 0xffd866, 0xfcfcfa, 0x403e41, 0x49464e, 0xffd866, 0xff6188, 0x78dce8, 0xa9dc76, 0xffd866, 0xab9df2, 0x727072, 0xff6188, 0xff6188, 0xab9df2, 0xfc9867, 0xffd866, 0xa9dc76, 0xfc9867, 0xff6188, 0x78dce8}},
+    {"Cyberpunk Neon", {0x080811, 0x0f0f1b, 0x080811, 0x080811, 0x05050a, 0x080811, 0x05050a, 0x1e1e38, 0xff007f, 0x0f0f1b, 0x080811, 0x1a1a2e, 0x00fff5, 0x606080, 0x00fff5, 0xe0e0ff, 0xffffff, 0xff007f, 0x17172b, 0x404070, 0x00fff5, 0x00fff5, 0x222244, 0x331033, 0xff007f, 0xff007f, 0x00fff5, 0xffe600, 0x05ffa1, 0xff9900, 0x606090, 0xff0055, 0x00fff5, 0xffe600, 0xff77aa, 0x00fff5, 0x05ffa1, 0xffe600, 0xff0055, 0x00fff5}},
+}};
+
+// ---- Palette-derived themes: ~14 colors in, a full 40-color theme out. ----
+struct Palette {
+    const char* name;
+    bool dark;
+    unsigned bg, fg, accent, keyword, type, function, string, number, comment, preproc, constant,
+             success, warning, error;
+};
+
+QColor mix(const QColor& a, const QColor& b, double t) {
+    return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t,
+                            a.greenF() + (b.greenF() - a.greenF()) * t,
+                            a.blueF() + (b.blueF() - a.blueF()) * t);
+}
+
+ThemeColors derive(const Palette& p) {
+    ThemeColors c;
+    const QColor bg(p.bg), fg(p.fg), accent(p.accent);
+    const QColor chrome = p.dark ? bg.darker(112) : bg.darker(104);
+    c.windowBg = chrome;           c.editorBg = bg;
+    c.sidebarBg = chrome;          c.bottomPanelBg = chrome;
+    c.titleBarBg = chrome;         c.menuBarBg = chrome;
+    c.statusBarBg = p.dark ? bg.darker(125) : bg.darker(108);
+    c.border = mix(bg, fg, 0.13);  c.splitter = c.border;
+    c.tabActiveBg = bg;            c.tabInactiveBg = chrome;
+    c.tabHoverBg = mix(bg, fg, 0.07);
+    c.tabActiveFg = fg;            c.tabInactiveFg = mix(bg, fg, 0.55);
+    c.tabIndicator = accent;
+    c.textNormal = fg;             c.textSelected = p.dark ? QColor(Qt::white) : fg;
+    c.selectionBg = mix(bg, accent, p.dark ? 0.30 : 0.22);
+    c.currentLineBg = mix(bg, fg, 0.05);
+    c.lineNumberNormal = mix(bg, fg, 0.38);
+    c.lineNumberActive = accent;   c.cursor = accent;
+    c.indentGuide = mix(bg, fg, 0.10);
+    c.bracketMatchBg = mix(bg, accent, 0.25);
+    c.bracketMatchBorder = accent;
+    c.keyword = p.keyword;         c.type = p.type;
+    c.function = p.function;       c.string = p.string;
+    c.number = p.number;           c.comment = p.comment;
+    c.preprocessor = p.preproc;    c.operatorColor = mix(bg, fg, 0.65);
+    c.constant = p.constant;       c.variable = fg;
+    c.accent = accent;             c.success = p.success;
+    c.warning = p.warning;         c.error = p.error;
+    c.info = accent;
+    return c;
+}
+
+const std::array<Palette, 4> kPalettes = {{
+    {"LiteForge Daylight", false, 0xfafafa, 0x27272a, 0x0284c7, 0x7c3aed, 0x0369a1, 0x2563eb, 0x15803d,
+     0xc2410c, 0x8b8b95, 0xbe123c, 0xb45309, 0x16a34a, 0xd97706, 0xdc2626},
+    {"Gruvbox Dark", true, 0x282828, 0xebdbb2, 0xfabd2f, 0xfb4934, 0xfabd2f, 0x83a598, 0xb8bb26,
+     0xd3869b, 0x928374, 0x8ec07c, 0xd3869b, 0xb8bb26, 0xfe8019, 0xfb4934},
+    {"Nord", true, 0x2e3440, 0xd8dee9, 0x88c0d0, 0x81a1c1, 0x8fbcbb, 0x88c0d0, 0xa3be8c,
+     0xb48ead, 0x616e88, 0x5e81ac, 0xd08770, 0xa3be8c, 0xebcb8b, 0xbf616a},
+    {"Catppuccin Mocha", true, 0x1e1e2e, 0xcdd6f4, 0xcba6f7, 0xcba6f7, 0xf9e2af, 0x89b4fa, 0xa6e3a1,
+     0xfab387, 0x6c7086, 0xf38ba8, 0xfab387, 0xa6e3a1, 0xf9e2af, 0xf38ba8},
+}};
+
+const char* const kDefaultTheme = "LiteForge Obsidian";
+
+} // namespace
 
 ThemeManager& ThemeManager::instance() {
     static ThemeManager s_instance;
@@ -8,528 +138,197 @@ ThemeManager& ThemeManager::instance() {
 }
 
 ThemeManager::ThemeManager() {
-    loadPreset(ThemePreset::LiteForgeObsidian);
+    loadBuiltin(kDefaultTheme, m_currentColors);
+    m_currentThemeName = kDefaultTheme;
+}
+
+bool ThemeManager::loadBuiltin(const QString& name, ThemeColors& out) const {
+    for (const auto& b : kBuiltins) {
+        if (name == QLatin1String(b.name)) {
+            for (int i = 0; i < kFieldCount; ++i) out.*(kFields[i].member) = QColor::fromRgb(b.rgb[i]);
+            return true;
+        }
+    }
+    for (const auto& p : kPalettes) {
+        if (name == QLatin1String(p.name)) { out = derive(p); return true; }
+    }
+    return false;
+}
+
+std::vector<QString> ThemeManager::builtinThemes() const {
+    std::vector<QString> v;
+    for (const auto& b : kBuiltins) v.emplace_back(QLatin1String(b.name));
+    for (const auto& p : kPalettes) v.emplace_back(QLatin1String(p.name));
+    return v;
 }
 
 std::vector<QString> ThemeManager::availableThemes() const {
-    return {
-        "LiteForge Obsidian",
-        "One Dark Pro",
-        "Tokyo Night",
-        "Monokai Pro",
-        "Cyberpunk Neon"
-    };
+    auto v = builtinThemes();
+    QStringList user = m_userThemes.keys();
+    user.sort(Qt::CaseInsensitive);
+    for (const auto& u : user) v.push_back(u);
+    return v;
+}
+
+void ThemeManager::reloadUserThemes() {
+    m_userThemes.clear();
+    const QDir dir(Config::instance().themesDir());
+    if (!dir.exists()) return;
+    const auto files = dir.entryInfoList({"*.json"}, QDir::Files, QDir::Name);
+    for (const auto& fi : files) {
+        QString name;
+        ThemeColors scratch;
+        if (loadThemeFile(fi.absoluteFilePath(), scratch, &name) && !name.isEmpty())
+            m_userThemes.insert(name, fi.absoluteFilePath());
+    }
+}
+
+bool ThemeManager::loadThemeFile(const QString& path, ThemeColors& out, QString* nameOut) const {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return false;
+    const auto doc = QJsonDocument::fromJson(f.readAll());
+    if (!doc.isObject()) return false;
+    const QJsonObject root = doc.object();
+
+    QString base = root.value("base").toString(kDefaultTheme);
+    ThemeColors c;
+    if (!loadBuiltin(base, c)) loadBuiltin(kDefaultTheme, c);
+
+    const QJsonObject colors = root.value("colors").toObject();
+    for (const auto& fd : kFields) {
+        const QString hex = colors.value(QLatin1String(fd.key)).toString();
+        if (hex.isEmpty()) continue;
+        const QColor col(hex);
+        if (col.isValid()) c.*(fd.member) = col;
+    }
+    if (nameOut) *nameOut = root.value("name").toString(QFileInfo(path).completeBaseName());
+    out = c;
+    return true;
+}
+
+void ThemeManager::applyAccentOverride(ThemeColors& c) const {
+    const QString hex = Config::instance().ui().accentOverride;
+    if (hex.isEmpty()) return;
+    const QColor a(hex);
+    if (!a.isValid()) return;
+    c.accent = c.tabIndicator = c.lineNumberActive = c.cursor = c.bracketMatchBorder = c.info = a;
+    c.selectionBg = mix(c.editorBg, a, 0.30);
+    c.bracketMatchBg = mix(c.editorBg, a, 0.25);
 }
 
 void ThemeManager::applyTheme(const QString& themeName) {
-    if (themeName == "One Dark Pro") {
-        loadPreset(ThemePreset::OneDarkPro);
-    } else if (themeName == "Tokyo Night") {
-        loadPreset(ThemePreset::TokyoNight);
-    } else if (themeName == "Monokai Pro") {
-        loadPreset(ThemePreset::MonokaiPro);
-    } else if (themeName == "Cyberpunk Neon") {
-        loadPreset(ThemePreset::CyberpunkNeon);
+    ThemeColors c;
+    QString resolved = themeName;
+    if (loadBuiltin(themeName, c)) {
+        // built-in
+    } else if (m_userThemes.contains(themeName) && loadThemeFile(m_userThemes.value(themeName), c)) {
+        // user theme
     } else {
-        loadPreset(ThemePreset::LiteForgeObsidian);
+        loadBuiltin(kDefaultTheme, c);
+        resolved = kDefaultTheme;
     }
+    applyAccentOverride(c);
+    m_currentColors = c;
+    m_currentThemeName = resolved;
 }
 
-void ThemeManager::applyTheme(ThemePreset preset) {
-    loadPreset(preset);
-}
-
-void ThemeManager::loadPreset(ThemePreset preset) {
-    switch (preset) {
-    case ThemePreset::OneDarkPro: {
-        m_currentThemeName = "One Dark Pro";
-        m_currentColors.windowBg = QColor("#21252b");
-        m_currentColors.editorBg = QColor("#282c34");
-        m_currentColors.sidebarBg = QColor("#21252b");
-        m_currentColors.bottomPanelBg = QColor("#21252b");
-        m_currentColors.titleBarBg = QColor("#1e2227");
-        m_currentColors.menuBarBg = QColor("#21252b");
-        m_currentColors.statusBarBg = QColor("#1e2227");
-
-        m_currentColors.border = QColor("#181a1f");
-        m_currentColors.splitter = QColor("#181a1f");
-
-        m_currentColors.tabActiveBg = QColor("#282c34");
-        m_currentColors.tabInactiveBg = QColor("#21252b");
-        m_currentColors.tabHoverBg = QColor("#2c313a");
-        m_currentColors.tabActiveFg = QColor("#abb2bf");
-        m_currentColors.tabInactiveFg = QColor("#5c6370");
-        m_currentColors.tabIndicator = QColor("#61afef");
-
-        m_currentColors.textNormal = QColor("#abb2bf");
-        m_currentColors.textSelected = QColor("#ffffff");
-        m_currentColors.selectionBg = QColor("#3e4451");
-        m_currentColors.currentLineBg = QColor("#2c313c");
-        m_currentColors.lineNumberNormal = QColor("#4b5263");
-        m_currentColors.lineNumberActive = QColor("#abb2bf");
-        m_currentColors.cursor = QColor("#528bff");
-        m_currentColors.indentGuide = QColor("#3b4048");
-        m_currentColors.bracketMatchBg = QColor("#515a6b");
-        m_currentColors.bracketMatchBorder = QColor("#61afef");
-
-        m_currentColors.keyword = QColor("#c678dd");
-        m_currentColors.type = QColor("#e5c07b");
-        m_currentColors.function = QColor("#61afef");
-        m_currentColors.string = QColor("#98c379");
-        m_currentColors.number = QColor("#d19a66");
-        m_currentColors.comment = QColor("#5c6370");
-        m_currentColors.preprocessor = QColor("#e06c75");
-        m_currentColors.operatorColor = QColor("#56b6c2");
-        m_currentColors.constant = QColor("#d19a66");
-        m_currentColors.variable = QColor("#e06c75");
-
-        m_currentColors.accent = QColor("#61afef");
-        m_currentColors.success = QColor("#98c379");
-        m_currentColors.warning = QColor("#e5c07b");
-        m_currentColors.error = QColor("#e06c75");
-        m_currentColors.info = QColor("#56b6c2");
-        break;
-    }
-    case ThemePreset::TokyoNight: {
-        m_currentThemeName = "Tokyo Night";
-        m_currentColors.windowBg = QColor("#16161e");
-        m_currentColors.editorBg = QColor("#1a1b26");
-        m_currentColors.sidebarBg = QColor("#16161e");
-        m_currentColors.bottomPanelBg = QColor("#16161e");
-        m_currentColors.titleBarBg = QColor("#13141c");
-        m_currentColors.menuBarBg = QColor("#16161e");
-        m_currentColors.statusBarBg = QColor("#13141c");
-
-        m_currentColors.border = QColor("#101014");
-        m_currentColors.splitter = QColor("#292e42");
-
-        m_currentColors.tabActiveBg = QColor("#1a1b26");
-        m_currentColors.tabInactiveBg = QColor("#16161e");
-        m_currentColors.tabHoverBg = QColor("#24283b");
-        m_currentColors.tabActiveFg = QColor("#a9b1d6");
-        m_currentColors.tabInactiveFg = QColor("#565f89");
-        m_currentColors.tabIndicator = QColor("#7aa2f7");
-
-        m_currentColors.textNormal = QColor("#a9b1d6");
-        m_currentColors.textSelected = QColor("#ffffff");
-        m_currentColors.selectionBg = QColor("#33467c");
-        m_currentColors.currentLineBg = QColor("#1f2335");
-        m_currentColors.lineNumberNormal = QColor("#363b54");
-        m_currentColors.lineNumberActive = QColor("#7aa2f7");
-        m_currentColors.cursor = QColor("#c0caf5");
-        m_currentColors.indentGuide = QColor("#292e42");
-        m_currentColors.bracketMatchBg = QColor("#3b4261");
-        m_currentColors.bracketMatchBorder = QColor("#7aa2f7");
-
-        m_currentColors.keyword = QColor("#bb9af7");
-        m_currentColors.type = QColor("#2ac3de");
-        m_currentColors.function = QColor("#7aa2f7");
-        m_currentColors.string = QColor("#9ece6a");
-        m_currentColors.number = QColor("#ff9e64");
-        m_currentColors.comment = QColor("#565f89");
-        m_currentColors.preprocessor = QColor("#f7768e");
-        m_currentColors.operatorColor = QColor("#89ddff");
-        m_currentColors.constant = QColor("#ff9e64");
-        m_currentColors.variable = QColor("#e0af68");
-
-        m_currentColors.accent = QColor("#7aa2f7");
-        m_currentColors.success = QColor("#9ece6a");
-        m_currentColors.warning = QColor("#e0af68");
-        m_currentColors.error = QColor("#f7768e");
-        m_currentColors.info = QColor("#2ac3de");
-        break;
-    }
-    case ThemePreset::MonokaiPro: {
-        m_currentThemeName = "Monokai Pro";
-        m_currentColors.windowBg = QColor("#221f22");
-        m_currentColors.editorBg = QColor("#2d2a2e");
-        m_currentColors.sidebarBg = QColor("#221f22");
-        m_currentColors.bottomPanelBg = QColor("#221f22");
-        m_currentColors.titleBarBg = QColor("#19181a");
-        m_currentColors.menuBarBg = QColor("#221f22");
-        m_currentColors.statusBarBg = QColor("#19181a");
-
-        m_currentColors.border = QColor("#19181a");
-        m_currentColors.splitter = QColor("#3a383b");
-
-        m_currentColors.tabActiveBg = QColor("#2d2a2e");
-        m_currentColors.tabInactiveBg = QColor("#221f22");
-        m_currentColors.tabHoverBg = QColor("#353236");
-        m_currentColors.tabActiveFg = QColor("#fcfcfa");
-        m_currentColors.tabInactiveFg = QColor("#727072");
-        m_currentColors.tabIndicator = QColor("#ffd866");
-
-        m_currentColors.textNormal = QColor("#fcfcfa");
-        m_currentColors.textSelected = QColor("#ffffff");
-        m_currentColors.selectionBg = QColor("#49464e");
-        m_currentColors.currentLineBg = QColor("#353337");
-        m_currentColors.lineNumberNormal = QColor("#5b595c");
-        m_currentColors.lineNumberActive = QColor("#ffd866");
-        m_currentColors.cursor = QColor("#fcfcfa");
-        m_currentColors.indentGuide = QColor("#403e41");
-        m_currentColors.bracketMatchBg = QColor("#49464e");
-        m_currentColors.bracketMatchBorder = QColor("#ffd866");
-
-        m_currentColors.keyword = QColor("#ff6188");
-        m_currentColors.type = QColor("#78dce8");
-        m_currentColors.function = QColor("#a9dc76");
-        m_currentColors.string = QColor("#ffd866");
-        m_currentColors.number = QColor("#ab9df2");
-        m_currentColors.comment = QColor("#727072");
-        m_currentColors.preprocessor = QColor("#ff6188");
-        m_currentColors.operatorColor = QColor("#ff6188");
-        m_currentColors.constant = QColor("#ab9df2");
-        m_currentColors.variable = QColor("#fc9867");
-
-        m_currentColors.accent = QColor("#ffd866");
-        m_currentColors.success = QColor("#a9dc76");
-        m_currentColors.warning = QColor("#fc9867");
-        m_currentColors.error = QColor("#ff6188");
-        m_currentColors.info = QColor("#78dce8");
-        break;
-    }
-    case ThemePreset::CyberpunkNeon: {
-        m_currentThemeName = "Cyberpunk Neon";
-        m_currentColors.windowBg = QColor("#080811");
-        m_currentColors.editorBg = QColor("#0f0f1b");
-        m_currentColors.sidebarBg = QColor("#080811");
-        m_currentColors.bottomPanelBg = QColor("#080811");
-        m_currentColors.titleBarBg = QColor("#05050a");
-        m_currentColors.menuBarBg = QColor("#080811");
-        m_currentColors.statusBarBg = QColor("#05050a");
-
-        m_currentColors.border = QColor("#1e1e38");
-        m_currentColors.splitter = QColor("#ff007f");
-
-        m_currentColors.tabActiveBg = QColor("#0f0f1b");
-        m_currentColors.tabInactiveBg = QColor("#080811");
-        m_currentColors.tabHoverBg = QColor("#1a1a2e");
-        m_currentColors.tabActiveFg = QColor("#00fff5");
-        m_currentColors.tabInactiveFg = QColor("#606080");
-        m_currentColors.tabIndicator = QColor("#00fff5");
-
-        m_currentColors.textNormal = QColor("#e0e0ff");
-        m_currentColors.textSelected = QColor("#ffffff");
-        m_currentColors.selectionBg = QColor("#ff007f");
-        m_currentColors.currentLineBg = QColor("#17172b");
-        m_currentColors.lineNumberNormal = QColor("#404070");
-        m_currentColors.lineNumberActive = QColor("#00fff5");
-        m_currentColors.cursor = QColor("#00fff5");
-        m_currentColors.indentGuide = QColor("#222244");
-        m_currentColors.bracketMatchBg = QColor("#331033");
-        m_currentColors.bracketMatchBorder = QColor("#ff007f");
-
-        m_currentColors.keyword = QColor("#ff007f");
-        m_currentColors.type = QColor("#00fff5");
-        m_currentColors.function = QColor("#ffe600");
-        m_currentColors.string = QColor("#05ffa1");
-        m_currentColors.number = QColor("#ff9900");
-        m_currentColors.comment = QColor("#606090");
-        m_currentColors.preprocessor = QColor("#ff0055");
-        m_currentColors.operatorColor = QColor("#00fff5");
-        m_currentColors.constant = QColor("#ffe600");
-        m_currentColors.variable = QColor("#ff77aa");
-
-        m_currentColors.accent = QColor("#00fff5");
-        m_currentColors.success = QColor("#05ffa1");
-        m_currentColors.warning = QColor("#ffe600");
-        m_currentColors.error = QColor("#ff0055");
-        m_currentColors.info = QColor("#00fff5");
-        break;
-    }
-    case ThemePreset::LiteForgeObsidian:
-    default: {
-        m_currentThemeName = "LiteForge Obsidian";
-        m_currentColors.windowBg = QColor("#141416");
-        m_currentColors.editorBg = QColor("#18181b");
-        m_currentColors.sidebarBg = QColor("#121214");
-        m_currentColors.bottomPanelBg = QColor("#121214");
-        m_currentColors.titleBarBg = QColor("#0f0f10");
-        m_currentColors.menuBarBg = QColor("#141416");
-        m_currentColors.statusBarBg = QColor("#0f0f10");
-
-        m_currentColors.border = QColor("#27272a");
-        m_currentColors.splitter = QColor("#27272a");
-
-        m_currentColors.tabActiveBg = QColor("#18181b");
-        m_currentColors.tabInactiveBg = QColor("#121214");
-        m_currentColors.tabHoverBg = QColor("#1f1f23");
-        m_currentColors.tabActiveFg = QColor("#f4f4f5");
-        m_currentColors.tabInactiveFg = QColor("#71717a");
-        m_currentColors.tabIndicator = QColor("#38bdf8");
-
-        m_currentColors.textNormal = QColor("#e4e4e7");
-        m_currentColors.textSelected = QColor("#ffffff");
-        m_currentColors.selectionBg = QColor("#2b3245");
-        m_currentColors.currentLineBg = QColor("#202024");
-        m_currentColors.lineNumberNormal = QColor("#52525b");
-        m_currentColors.lineNumberActive = QColor("#38bdf8");
-        m_currentColors.cursor = QColor("#38bdf8");
-        m_currentColors.indentGuide = QColor("#27272a");
-        m_currentColors.bracketMatchBg = QColor("#334155");
-        m_currentColors.bracketMatchBorder = QColor("#38bdf8");
-
-        m_currentColors.keyword = QColor("#c084fc");
-        m_currentColors.type = QColor("#38bdf8");
-        m_currentColors.function = QColor("#60a5fa");
-        m_currentColors.string = QColor("#4ade80");
-        m_currentColors.number = QColor("#fb923c");
-        m_currentColors.comment = QColor("#71717a");
-        m_currentColors.preprocessor = QColor("#f43f5e");
-        m_currentColors.operatorColor = QColor("#94a3b8");
-        m_currentColors.constant = QColor("#f59e0b");
-        m_currentColors.variable = QColor("#e4e4e7");
-
-        m_currentColors.accent = QColor("#38bdf8");
-        m_currentColors.success = QColor("#34d399");
-        m_currentColors.warning = QColor("#fbbf24");
-        m_currentColors.error = QColor("#f87171");
-        m_currentColors.info = QColor("#38bdf8");
-        break;
-    }
-    }
+bool ThemeManager::exportThemeTemplate(const QString& path) const {
+    QJsonObject colors;
+    for (const auto& fd : kFields)
+        colors[QLatin1String(fd.key)] = (m_currentColors.*(fd.member)).name();
+    QJsonObject root;
+    root["name"] = QStringLiteral("My Theme");
+    root["base"] = m_currentThemeName;
+    root["colors"] = colors;
+    QSaveFile f(path);
+    if (!f.open(QIODevice::WriteOnly)) return false;
+    f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    return f.commit();
 }
 
 QString ThemeManager::generateStyleSheet() const {
     const auto& c = m_currentColors;
+    const auto& ui = Config::instance().ui();
 
-    return QString(R"(
-        /* Global Widget Style */
-        QWidget {
-            background-color: %1;
-            color: %2;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            font-size: 13px;
-            selection-background-color: %3;
-            selection-color: %4;
-            border: none;
-        }
+    int padV = 4, padH = 10, itemPad = 4;
+    if (ui.density == QLatin1String("compact")) { padV = 2; padH = 7; itemPad = 2; }
+    else if (ui.density == QLatin1String("comfortable")) { padV = 7; padH = 14; itemPad = 7; }
+    const int r = ui.cornerRadius;
 
-        /* Main Window */
-        QMainWindow {
-            background-color: %1;
-        }
+    QString qss = QStringLiteral(R"(
+QWidget { background-color: {{window}}; color: {{text}}; selection-background-color: {{selection}}; selection-color: {{selectedText}}; }
+QLabel, QCheckBox, QRadioButton { background: transparent; }
+QFrame, QAbstractScrollArea { border: none; }
+QToolTip { background-color: {{editor}}; color: {{text}}; border: 1px solid {{border}}; padding: 3px 6px; }
 
-        /* Menu Bar */
-        QMenuBar {
-            background-color: %5;
-            color: %6;
-            border-bottom: 1px solid %7;
-            padding: 2px 4px;
-        }
-        QMenuBar::item {
-            background: transparent;
-            padding: 4px 10px;
-            border-radius: 4px;
-        }
-        QMenuBar::item:selected {
-            background-color: %8;
-            color: #ffffff;
-        }
+QMenuBar { background-color: {{menubar}}; padding: 0px 4px; }
+QMenuBar::item { background: transparent; padding: {{padV}}px {{padH}}px; border-radius: {{r}}px; }
+QMenuBar::item:selected { background-color: {{hover}}; }
+QMenu { background-color: {{editor}}; border: 1px solid {{border}}; padding: 4px; }
+QMenu::item { padding: {{padV}}px 22px {{padV}}px 14px; border-radius: {{r}}px; }
+QMenu::item:selected { background-color: {{selection}}; color: {{selectedText}}; }
+QMenu::separator { height: 1px; background-color: {{border}}; margin: 4px 6px; }
 
-        /* Menus */
-        QMenu {
-            background-color: %1;
-            color: %2;
-            border: 1px solid %7;
-            border-radius: 6px;
-            padding: 4px;
-        }
-        QMenu::item {
-            padding: 5px 24px 5px 20px;
-            border-radius: 4px;
-        }
-        QMenu::item:selected {
-            background-color: %8;
-            color: #ffffff;
-        }
-        QMenu::separator {
-            height: 1px;
-            background-color: %7;
-            margin: 4px 6px;
-        }
+QToolBar { background-color: {{menubar}}; border: none; border-bottom: 1px solid {{border}}; padding: 1px 4px; spacing: 2px; }
+QToolButton { background: transparent; border-radius: {{r}}px; padding: {{padV}}px {{padH}}px; }
+QToolButton:hover { background-color: {{hover}}; }
+QToolButton:pressed { background-color: {{selection}}; }
 
-        /* ToolBar */
-        QToolBar {
-            background-color: %5;
-            border-bottom: 1px solid %7;
-            padding: 2px 4px;
-            spacing: 4px;
-        }
-        QToolButton {
-            background-color: transparent;
-            color: %2;
-            border-radius: 4px;
-            padding: 4px 8px;
-            font-weight: 500;
-        }
-        QToolButton:hover {
-            background-color: %8;
-            color: #ffffff;
-        }
-        QToolButton:pressed {
-            background-color: %3;
-        }
+QTabWidget::pane { border: none; background-color: {{editor}}; }
+QTabBar { background: transparent; }
+QTabBar::tab { background-color: {{tabInactive}}; color: {{tabInactiveFg}}; padding: {{padV}}px {{padH}}px; border: none; border-bottom: 2px solid transparent; }
+QTabBar::tab:hover { background-color: {{hover}}; color: {{text}}; }
+QTabBar::tab:selected { background-color: {{editor}}; color: {{tabActiveFg}}; border-bottom: 2px solid {{accent}}; }
 
-        /* Tabs */
-        QTabWidget::pane {
-            border: none;
-            background-color: %9;
-        }
-        QTabBar::tab {
-            background-color: %10;
-            color: %11;
-            padding: 6px 14px;
-            border-top-left-radius: 4px;
-            border-top-right-radius: 4px;
-            border-right: 1px solid %7;
-            min-width: 80px;
-        }
-        QTabBar::tab:hover {
-            background-color: %12;
-            color: %2;
-        }
-        QTabBar::tab:selected {
-            background-color: %9;
-            color: %13;
-            border-bottom: 2px solid %14;
-        }
+QSplitter::handle { background-color: {{border}}; }
+QSplitter::handle:horizontal { width: 1px; }
+QSplitter::handle:vertical { height: 1px; }
 
-        /* Splitters */
-        QSplitter::handle {
-            background-color: %7;
-        }
-        QSplitter::handle:horizontal {
-            width: 1px;
-        }
-        QSplitter::handle:vertical {
-            height: 1px;
-        }
+QScrollBar:vertical { background: transparent; width: 10px; margin: 0; }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 0; }
+QScrollBar::handle { background-color: {{lineNum}}; border-radius: 3px; min-height: 28px; min-width: 28px; margin: 2px; }
+QScrollBar::handle:hover { background-color: {{accent}}; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 
-        /* Scrollbars (Modern Minimalist Thin) */
-        QScrollBar:vertical {
-            border: none;
-            background-color: transparent;
-            width: 8px;
-            margin: 0px;
-        }
-        QScrollBar::handle:vertical {
-            background-color: %15;
-            min-height: 24px;
-            border-radius: 4px;
-        }
-        QScrollBar::handle:vertical:hover {
-            background-color: %16;
-        }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-            height: 0px;
-        }
-        QScrollBar:horizontal {
-            border: none;
-            background-color: transparent;
-            height: 8px;
-            margin: 0px;
-        }
-        QScrollBar::handle:horizontal {
-            background-color: %15;
-            min-width: 24px;
-            border-radius: 4px;
-        }
-        QScrollBar::handle:horizontal:hover {
-            background-color: %16;
-        }
-        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-            width: 0px;
-        }
+QTreeView, QListView, QTableWidget { background-color: {{sidebar}}; outline: none; }
+QTreeView::item, QListView::item { padding: {{itemPad}}px 4px; border-radius: {{r}}px; }
+QTreeView::item:hover, QListView::item:hover { background-color: {{hover}}; }
+QTreeView::item:selected, QListView::item:selected { background-color: {{selection}}; color: {{selectedText}}; }
+QHeaderView::section { background-color: {{sidebar}}; color: {{tabInactiveFg}}; border: none; padding: 3px 6px; }
 
-        /* Trees / Lists */
-        QTreeView, QListView, QTableWidget {
-            background-color: %17;
-            color: %2;
-            border: none;
-            outline: none;
-        }
-        QTreeView::item, QListView::item {
-            padding: 4px 6px;
-            border-radius: 3px;
-        }
-        QTreeView::item:hover, QListView::item:hover {
-            background-color: %8;
-        }
-        QTreeView::item:selected, QListView::item:selected {
-            background-color: %3;
-            color: %4;
-        }
+QLineEdit, QSpinBox, QComboBox { background-color: {{editor}}; border: 1px solid {{border}}; border-radius: {{r}}px; padding: {{itemPad}}px 8px; }
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border-color: {{accent}}; }
+QComboBox::drop-down { border: none; width: 18px; }
+QComboBox QAbstractItemView { background-color: {{editor}}; border: 1px solid {{border}}; selection-background-color: {{selection}}; }
 
-        /* LineEdits and Inputs */
-        QLineEdit {
-            background-color: %18;
-            color: %2;
-            border: 1px solid %7;
-            border-radius: 4px;
-            padding: 5px 8px;
-        }
-        QLineEdit:focus {
-            border: 1px solid %14;
-        }
+QPushButton { background-color: {{hover}}; border: 1px solid {{border}}; border-radius: {{r}}px; padding: {{padV}}px {{padH}}px; }
+QPushButton:hover { border-color: {{accent}}; }
+QPushButton:pressed { background-color: {{selection}}; }
+QPushButton:disabled { color: {{lineNum}}; }
 
-        /* PushButtons */
-        QPushButton {
-            background-color: %8;
-            color: %2;
-            border: 1px solid %7;
-            border-radius: 4px;
-            padding: 5px 12px;
-            font-weight: 500;
-        }
-        QPushButton:hover {
-            background-color: %12;
-            border-color: %14;
-            color: #ffffff;
-        }
-        QPushButton:pressed {
-            background-color: %3;
-        }
+QStatusBar { background-color: {{statusbar}}; color: {{tabInactiveFg}}; border-top: 1px solid {{border}}; }
+QStatusBar::item { border: none; }
+QStatusBar QLabel, QStatusBar QPushButton { background: transparent; padding: 0px 6px; }
+QStatusBar QPushButton { border: none; border-radius: {{r}}px; }
+QStatusBar QPushButton:hover { background-color: {{hover}}; color: {{text}}; }
+)");
 
-        /* Status Bar */
-        QStatusBar {
-            background-color: %19;
-            color: %11;
-            border-top: 1px solid %7;
-        }
-        QStatusBar QLabel, QStatusBar QPushButton {
-            font-size: 11px;
-            padding: 1px 6px;
-        }
-        QStatusBar QPushButton {
-            border: none;
-            background: transparent;
-        }
-        QStatusBar QPushButton:hover {
-            background-color: %8;
-            border-radius: 3px;
-            color: #ffffff;
-        }
-    )")
-    .arg(c.windowBg.name())               // 1
-    .arg(c.textNormal.name())             // 2
-    .arg(c.selectionBg.name())            // 3
-    .arg(c.textSelected.name())           // 4
-    .arg(c.menuBarBg.name())              // 5
-    .arg(c.textNormal.name())             // 6
-    .arg(c.border.name())                 // 7
-    .arg(c.tabHoverBg.name())             // 8
-    .arg(c.editorBg.name())               // 9
-    .arg(c.tabInactiveBg.name())          // 10
-    .arg(c.tabInactiveFg.name())          // 11
-    .arg(c.tabHoverBg.name())             // 12
-    .arg(c.tabActiveFg.name())            // 13
-    .arg(c.accent.name())                 // 14
-    .arg(c.lineNumberNormal.name())       // 15
-    .arg(c.accent.name())                 // 16
-    .arg(c.sidebarBg.name())              // 17
-    .arg(c.editorBg.name())               // 18
-    .arg(c.statusBarBg.name());           // 19
+    const QHash<QString, QString> tokens = {
+        {"window", c.windowBg.name()},       {"text", c.textNormal.name()},
+        {"selection", c.selectionBg.name()}, {"selectedText", c.textSelected.name()},
+        {"menubar", c.menuBarBg.name()},     {"border", c.border.name()},
+        {"hover", c.tabHoverBg.name()},      {"editor", c.editorBg.name()},
+        {"tabInactive", c.tabInactiveBg.name()}, {"tabInactiveFg", c.tabInactiveFg.name()},
+        {"tabActiveFg", c.tabActiveFg.name()},   {"accent", c.accent.name()},
+        {"lineNum", c.lineNumberNormal.name()},  {"sidebar", c.sidebarBg.name()},
+        {"statusbar", c.statusBarBg.name()},
+        {"padV", QString::number(padV)}, {"padH", QString::number(padH)},
+        {"itemPad", QString::number(itemPad)}, {"r", QString::number(r)},
+    };
+    for (auto it = tokens.cbegin(); it != tokens.cend(); ++it)
+        qss.replace(QStringLiteral("{{") + it.key() + QStringLiteral("}}"), it.value());
+    return qss;
 }
 
 } // namespace liteforge::core

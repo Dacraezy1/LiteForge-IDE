@@ -1,29 +1,33 @@
+# Maintainer: Dacraezy1 <https://github.com/Dacraezy1/LiteForge-IDE>
 pkgname=liteforge
-pkgver=1.1.0
+pkgver=1.2.0
 pkgrel=1
-pkgdesc="Featherweight, zero-bloat native C++ IDE"
-arch=('x86_64' 'aarch64')
+pkgdesc="Featherweight, zero-bloat native C++ IDE (Qt 6)"
+arch=('x86_64' 'aarch64' 'armv7h' 'riscv64')
 url="https://github.com/Dacraezy1/LiteForge-IDE"
 license=('GPL-3.0-only')
 depends=('qt6-base')
-makedepends=('cmake' 'gcc')
-source=("$pkgname-$pkgver.tar.gz::https://github.com/Dacraezy1/LiteForge-IDE/archive/refs/tags/v$pkgver.tar.gz")
+makedepends=('cmake')
+optdepends=('qt6-wayland: native Wayland support'
+            'clang: clangd language server'
+            'gdb: debugger integration')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# Run `updpkgsums` once the v$pkgver tag exists on GitHub.
 sha256sums=('SKIP')
 
 build() {
-    cd "LiteForge-IDE-$pkgver"
-    cmake -B build \
+    cmake -B build -S "LiteForge-IDE-$pkgver" \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/usr
-    cmake --build build --parallel
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DENABLE_TESTING=ON
+    cmake --build build
 }
 
 check() {
-    cd "LiteForge-IDE-$pkgver"
-    ctest --test-dir build --output-on-failure
+    QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
 }
 
 package() {
-    cd "LiteForge-IDE-$pkgver"
     DESTDIR="$pkgdir" cmake --install build
+    install -Dm644 "LiteForge-IDE-$pkgver/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

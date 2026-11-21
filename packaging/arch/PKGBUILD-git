@@ -1,0 +1,35 @@
+# Maintainer: Dacraezy1 <https://github.com/Dacraezy1/LiteForge-IDE>
+# AUR "liteforge-git": rename this file to PKGBUILD in that package.
+pkgname=liteforge-git
+pkgver=1.2.0.r0.g0000000
+pkgrel=1
+pkgdesc="Featherweight, zero-bloat native C++ IDE (Qt 6) - git version"
+arch=('x86_64' 'aarch64' 'armv7h' 'riscv64')
+url="https://github.com/Dacraezy1/LiteForge-IDE"
+license=('GPL-3.0-only')
+depends=('qt6-base')
+makedepends=('cmake' 'git')
+provides=('liteforge')
+conflicts=('liteforge')
+source=("git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd LiteForge-IDE
+    git describe --long --tags 2>/dev/null | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' \
+        || printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+    cmake -B build -S LiteForge-IDE -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DENABLE_TESTING=ON
+    cmake --build build
+}
+
+check() {
+    QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+    install -Dm644 LiteForge-IDE/LICENSE "$pkgdir/usr/share/licenses/liteforge/LICENSE"
+}

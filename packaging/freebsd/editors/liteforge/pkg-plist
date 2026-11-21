@@ -1,0 +1,5 @@
+bin/liteforge
+share/applications/liteforge.desktop
+share/doc/liteforge/example-themes/solarized-ink.json
+share/icons/hicolor/scalable/apps/liteforge.svg
+share/metainfo/liteforge.metainfo.xml

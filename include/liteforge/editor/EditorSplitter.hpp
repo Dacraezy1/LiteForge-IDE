@@ -18,6 +18,7 @@ public:
     CodeEditor* newUntitledDocument();
 
     CodeEditor* currentEditor() const;
+    CodeEditor* editorForPath(const QString& path) const;
     TabManager* activeTabManager() const;
 
     void split(Qt::Orientation orientation);
@@ -25,7 +26,11 @@ public:
     bool isSplit() const { return m_secondaryTabManager != nullptr; }
 
     bool saveCurrentFile();
+    bool saveCurrentFileAs();
     bool saveAllFiles();
+    int autoSaveModified();
+    void checkExternalChanges();
+    void refreshEditorSettings();
     bool closeActiveTab();
     bool closeAllFiles();
 
@@ -37,6 +42,8 @@ public:
 signals:
     void activeEditorChanged(CodeEditor* editor);
     void fileOpened(const QString& filePath);
+    void fileSaved(const QString& filePath);
+    void documentEdited(CodeEditor* editor);
     void allFilesClosed();
 
 private:

@@ -16,7 +16,7 @@ StatusBar::StatusBar(QWidget* parent)
 void StatusBar::setupUi() {
     setSizeGripEnabled(false);
 
-    m_gitBtn = new QPushButton("⎇ No Git", this);
+    m_gitBtn = new QPushButton("No Git", this);
     m_gitBtn->setToolTip("Current Git Branch");
     addWidget(m_gitBtn);
 
@@ -56,9 +56,9 @@ void StatusBar::setupUi() {
 
 void StatusBar::setGitBranch(const QString& branch) {
     if (branch.isEmpty()) {
-        m_gitBtn->setText("⎇ No Git");
+        m_gitBtn->setText("No Git");
     } else {
-        m_gitBtn->setText("⎇ " + branch);
+        m_gitBtn->setText("git: " + branch);
     }
 }
 

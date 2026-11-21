@@ -42,6 +42,7 @@ public:
 signals:
     void diagnosticsReceived(const QString& filePath, const std::vector<Diagnostic>& diagnostics);
     void serverStarted();
+    void initialized();        // handshake finished: didOpen may now be sent
     void serverStopped();
     void serverError(const QString& error);
 

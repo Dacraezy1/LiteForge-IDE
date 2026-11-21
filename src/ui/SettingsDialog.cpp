@@ -5,13 +5,15 @@
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QScrollArea>
+#include <QColor>
 
 namespace liteforge::ui {
 
 SettingsDialog::SettingsDialog(QWidget* parent)
     : QDialog(parent) {
     setWindowTitle("LiteForge Preferences");
-    resize(520, 500);
+    resize(540, 620);
     setupUi();
     loadCurrentSettings();
 }
@@ -37,6 +39,26 @@ void SettingsDialog::setupUi() {
     m_fontSizeSpin = new QSpinBox(appGroup);
     m_fontSizeSpin->setRange(8, 36);
     appLayout->addRow("Font Size (pt):", m_fontSizeSpin);
+
+    m_densityCombo = new QComboBox(appGroup);
+    m_densityCombo->addItems({"compact", "normal", "comfortable"});
+    appLayout->addRow("UI Density:", m_densityCombo);
+
+    m_uiFontSizeSpin = new QSpinBox(appGroup);
+    m_uiFontSizeSpin->setRange(0, 24);
+    m_uiFontSizeSpin->setSpecialValueText("System default");
+    appLayout->addRow("UI Font Size (pt):", m_uiFontSizeSpin);
+
+    m_radiusSpin = new QSpinBox(appGroup);
+    m_radiusSpin->setRange(0, 12);
+    appLayout->addRow("Corner Radius (px):", m_radiusSpin);
+
+    m_accentEdit = new QLineEdit(appGroup);
+    m_accentEdit->setPlaceholderText("#rrggbb  (empty = theme accent)");
+    appLayout->addRow("Accent Color:", m_accentEdit);
+
+    m_toolbarCheck = new QCheckBox("Show toolbar", appGroup);
+    appLayout->addRow("", m_toolbarCheck);
 
     mainLayout->addWidget(appGroup);
 
@@ -65,6 +87,21 @@ void SettingsDialog::setupUi() {
 
     m_trimTrailingCheck = new QCheckBox("Trim trailing whitespace on save", edGroup);
     edLayout->addRow("", m_trimTrailingCheck);
+
+    m_minimapCheck = new QCheckBox("Show minimap", edGroup);
+    edLayout->addRow("", m_minimapCheck);
+
+    m_stickyCheck = new QCheckBox("Sticky scroll (pin enclosing scope)", edGroup);
+    edLayout->addRow("", m_stickyCheck);
+
+    m_autoSaveSpin = new QSpinBox(edGroup);
+    m_autoSaveSpin->setRange(0, 600);
+    m_autoSaveSpin->setSpecialValueText("Off");
+    m_autoSaveSpin->setSuffix(" s");
+    edLayout->addRow("Auto-save after:", m_autoSaveSpin);
+
+    m_autoSaveFocusCheck = new QCheckBox("Auto-save when window loses focus", edGroup);
+    edLayout->addRow("", m_autoSaveFocusCheck);
 
     mainLayout->addWidget(edGroup);
 
@@ -115,6 +152,17 @@ void SettingsDialog::loadCurrentSettings() {
     m_autoCloseBracketsCheck->setChecked(ed.autoCloseBrackets);
     m_wordWrapCheck->setChecked(ed.wordWrap);
     m_trimTrailingCheck->setChecked(ed.trimTrailingWhitespaceOnSave);
+    m_minimapCheck->setChecked(ed.minimap);
+    m_stickyCheck->setChecked(ed.stickyScroll);
+    m_autoSaveSpin->setValue(ed.autoSaveDelayMs / 1000);
+    m_autoSaveFocusCheck->setChecked(ed.autoSaveOnFocusLoss);
+
+    const auto& ui = cfg.ui();
+    m_densityCombo->setCurrentText(ui.density);
+    m_uiFontSizeSpin->setValue(ui.fontSize);
+    m_radiusSpin->setValue(ui.cornerRadius);
+    m_accentEdit->setText(ui.accentOverride);
+    m_toolbarCheck->setChecked(ui.showToolbar);
 
     const auto& b = cfg.build();
     m_customBuildEdit->setText(b.customBuildCommand);
@@ -134,6 +182,18 @@ void SettingsDialog::onApply() {
     ed.autoCloseBrackets = m_autoCloseBracketsCheck->isChecked();
     ed.wordWrap = m_wordWrapCheck->isChecked();
     ed.trimTrailingWhitespaceOnSave = m_trimTrailingCheck->isChecked();
+    ed.minimap = m_minimapCheck->isChecked();
+    ed.stickyScroll = m_stickyCheck->isChecked();
+    ed.autoSaveDelayMs = m_autoSaveSpin->value() * 1000;
+    ed.autoSaveOnFocusLoss = m_autoSaveFocusCheck->isChecked();
+
+    auto& ui = cfg.ui();
+    ui.density = m_densityCombo->currentText();
+    ui.fontSize = m_uiFontSizeSpin->value();
+    ui.cornerRadius = m_radiusSpin->value();
+    const QString accent = m_accentEdit->text().trimmed();
+    ui.accentOverride = QColor(accent).isValid() ? accent : QString();
+    ui.showToolbar = m_toolbarCheck->isChecked();
 
     cfg.setActiveTheme(m_themeCombo->currentText());
 
@@ -157,6 +217,16 @@ void SettingsDialog::onResetDefaults() {
     m_autoCloseBracketsCheck->setChecked(defEd.autoCloseBrackets);
     m_wordWrapCheck->setChecked(defEd.wordWrap);
     m_trimTrailingCheck->setChecked(defEd.trimTrailingWhitespaceOnSave);
+    m_minimapCheck->setChecked(defEd.minimap);
+    m_stickyCheck->setChecked(defEd.stickyScroll);
+    m_autoSaveSpin->setValue(0);
+    m_autoSaveFocusCheck->setChecked(false);
+    core::UiConfig defUi;
+    m_densityCombo->setCurrentText(defUi.density);
+    m_uiFontSizeSpin->setValue(defUi.fontSize);
+    m_radiusSpin->setValue(defUi.cornerRadius);
+    m_accentEdit->clear();
+    m_toolbarCheck->setChecked(defUi.showToolbar);
 }
 
 } // namespace liteforge::ui

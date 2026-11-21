@@ -1,33 +1,30 @@
+# Builds from the local checkout (used by flake.nix).
+# For nixpkgs, use package.nix (fetchFromGitHub).
 { lib
 , stdenv
 , cmake
 , qt6
 }:
 
-stdenv.mkDerivation rec {
+stdenv.mkDerivation {
   pname = "liteforge";
-  version = "1.1.0";
+  version = "1.2.0";
 
   src = lib.cleanSource ../..;
 
-  nativeBuildInputs = [
-    cmake
-    qt6.wrapQtAppsHook
-  ];
+  nativeBuildInputs = [ cmake qt6.wrapQtAppsHook ];
+  buildInputs = [ qt6.qtbase ] ++ lib.optionals stdenv.hostPlatform.isLinux [ qt6.qtwayland ];
 
-  buildInputs = [
-    qt6.qtbase
-  ];
+  cmakeFlags = [ "-DENABLE_TESTING=ON" ];
 
-  cmakeFlags = [
-    "-DCMAKE_BUILD_TYPE=Release"
-  ];
+  doCheck = true;
+  preCheck = "export QT_QPA_PLATFORM=offscreen";
 
   meta = with lib; {
     description = "Featherweight, zero-bloat native C++ IDE";
     homepage = "https://github.com/Dacraezy1/LiteForge-IDE";
     license = licenses.gpl3Only;
-    platforms = platforms.linux ++ platforms.darwin;
+    platforms = platforms.unix;
     mainProgram = "liteforge";
   };
 }

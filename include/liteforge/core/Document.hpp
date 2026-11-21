@@ -56,6 +56,10 @@ public:
     QString lineEndingString() const { return m_lineEnding == LineEnding::LF ? "LF" : "CRLF"; }
 
     QString encoding() const { return m_encoding; }
+    bool hasBom() const { return m_hasBom; }
+    void setHasBom(bool bom) { m_hasBom = bom; }
+    // Call after our own write so we don't mistake it for an external change.
+    void refreshDiskTimestamp();
 
     bool loadFromFile(const QString& path);
     bool saveToFile(const QString& path = QString());
@@ -76,6 +80,7 @@ private:
     Language m_language{Language::PlainText};
     LineEnding m_lineEnding{LineEnding::LF};
     QString m_encoding{"UTF-8"};
+    bool m_hasBom{false};
     QDateTime m_lastModifiedOnDisk;
 };
 

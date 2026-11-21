@@ -18,7 +18,7 @@ GitPanel::GitPanel(git::GitService* gitService, QWidget* parent)
         connect(m_gitService, &git::GitService::branchChanged, this, &GitPanel::onBranchChanged);
         connect(m_gitService, &git::GitService::operationFinished, this, [this](const QString&, bool success, const QString& msg) {
             if (m_statusMsgLabel) {
-                m_statusMsgLabel->setText(success ? "✓ " + msg.left(80) : "✗ " + msg.left(80));
+                m_statusMsgLabel->setText(success ? msg.left(80) : "Failed: " + msg.left(80));
             }
         });
     }
@@ -47,7 +47,7 @@ void GitPanel::setupUi() {
     connect(m_newBranchBtn, &QPushButton::clicked, this, &GitPanel::onNewBranchClicked);
     topBar->addWidget(m_newBranchBtn);
 
-    m_refreshBtn = new QPushButton("⟳", this);
+    m_refreshBtn = new QPushButton("Refresh", this);
     m_refreshBtn->setToolTip("Refresh Git Status");
     m_refreshBtn->setFixedWidth(28);
     connect(m_refreshBtn, &QPushButton::clicked, this, &GitPanel::refresh);
@@ -59,11 +59,11 @@ void GitPanel::setupUi() {
     auto* syncBar = new QHBoxLayout();
     syncBar->setSpacing(6);
 
-    m_pullBtn = new QPushButton("↓ Pull", this);
+    m_pullBtn = new QPushButton("Pull", this);
     connect(m_pullBtn, &QPushButton::clicked, this, &GitPanel::onPullClicked);
     syncBar->addWidget(m_pullBtn);
 
-    m_pushBtn = new QPushButton("↑ Push", this);
+    m_pushBtn = new QPushButton("Push", this);
     connect(m_pushBtn, &QPushButton::clicked, this, &GitPanel::onPushClicked);
     syncBar->addWidget(m_pushBtn);
 

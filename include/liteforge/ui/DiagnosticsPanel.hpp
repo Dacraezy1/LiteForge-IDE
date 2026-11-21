@@ -29,6 +29,8 @@ public:
     ~DiagnosticsPanel() override = default;
 
     void clearDiagnostics();
+    // Drops every entry for one file (LSP republishes a file's full list each time).
+    void removeForFile(const QString& file);
     void addDiagnostic(DiagnosticSeverity severity, const QString& message, const QString& file, int line, int column);
     void setDiagnostics(const std::vector<DiagnosticItem>& items);
 

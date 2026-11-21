@@ -1,0 +1,19 @@
+{
+  "name": "Solarized Ink",
+  "base": "LiteForge Obsidian",
+  "colors": {
+    "windowBg": "#00212b",
+    "editorBg": "#002b36",
+    "sidebarBg": "#00212b",
+    "bottomPanelBg": "#00212b",
+    "statusBarBg": "#001a22",
+    "accent": "#2aa198",
+    "keyword": "#859900",
+    "type": "#b58900",
+    "function": "#268bd2",
+    "string": "#2aa198",
+    "number": "#d33682",
+    "comment": "#586e75",
+    "textNormal": "#93a1a1"
+  }
+}

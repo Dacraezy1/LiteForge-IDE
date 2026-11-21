@@ -1,0 +1,3 @@
+LiteForge is a small, fast code editor and IDE written in C++20 and Qt 6.
+Panels are built on first use to keep memory low, and themes, keybindings
+and settings are plain JSON files.

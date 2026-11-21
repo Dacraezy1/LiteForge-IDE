@@ -26,6 +26,12 @@
 #include <QSplitter>
 #include <QTabWidget>
 #include <QStackedWidget>
+#include <QPointer>
+#include <QHash>
+#include <QTimer>
+#include <vector>
+class QMenu;
+class QToolBar;
 #include <memory>
 
 namespace liteforge::ui {
@@ -117,6 +123,14 @@ private slots:
     void onJumpToSource(const QString& file, int line, int column);
     void onSettingsApplied();
 
+    // Customisation
+    void reloadConfig();
+    void openConfigFile();
+    void openKeybindingsFile();
+    void exportThemeTemplate();
+    void openThemesFolder();
+    void toggleToolbar();
+
     // LSP event handlers
     void onLspDefinitionRequested(int line, int col);
     void onLspReferencesRequested(int line, int col);
@@ -131,11 +145,35 @@ private:
     void setupToolBar();
     void setupShortcuts();
     void setupConnections();
-    void setupCommandPaletteActions();
     void applyTheme(const QString& themeName);
+    void applyUiSettings();
+    void applyKeybindings();
+    void rebuildThemeMenu();
+    void rebuildProfileMenu();
     void loadSession();
+    void restoreOpenFiles();
     void saveSession();
     void updateCenterView();
+    void setupAutoSave();
+    void startLspIfConfigured(const QString& rootPath);
+    void queueLspChange(editor::CodeEditor* editor);
+    void flushLspChanges();
+    void announceOpenDocumentsToLsp();
+    void openConfigTextFile(const QString& path, const QString& templateContent);
+    QString keyFor(const QString& actionId) const;
+
+    // Lazily created UI: nothing below exists (or costs RAM / startup time)
+    // until the first time the user actually needs it.
+    GitPanel* ensureGitPanel();
+    TerminalPanel* ensureTerminal();
+    DebuggerPanel* ensureDebugger();
+    CommandPalette* palette();
+    FindInFilesDialog* findInFiles();
+    SettingsDialog* settingsDialog();
+    AboutDialog* aboutDialog();
+    CompletionPopup* completionPopup();
+    void onSidebarTabChanged(int index);
+    void onBottomTabChanged(int index);
 
     // Core subsystems
     std::unique_ptr<core::Project> m_project;
@@ -149,6 +187,9 @@ private:
     QTabWidget* m_sidebarTabWidget{nullptr};
     FileExplorer* m_fileExplorer{nullptr};
     GitPanel* m_gitPanel{nullptr};
+    QWidget* m_gitPlaceholder{nullptr};
+    QWidget* m_terminalPlaceholder{nullptr};
+    QWidget* m_debuggerPlaceholder{nullptr};
 
     QSplitter* m_rightSplitter{nullptr};
     QStackedWidget* m_centerStack{nullptr};
@@ -167,6 +208,16 @@ private:
     FindInFilesDialog* m_findInFilesDialog{nullptr};
     SettingsDialog* m_settingsDialog{nullptr};
     AboutDialog* m_aboutDialog{nullptr};
+
+    QMenu* m_themeMenu{nullptr};
+    QMenu* m_profileMenu{nullptr};
+    QToolBar* m_toolBar{nullptr};
+
+    QTimer* m_autoSaveTimer{nullptr};
+    QTimer* m_lspSyncTimer{nullptr};
+    std::vector<QPointer<editor::CodeEditor>> m_lspPending;
+    QHash<QString, int> m_lspVersions;
+    bool m_pendingRebuild{false};
 
     bool m_distractionFree{false};
     QByteArray m_savedGeometry;

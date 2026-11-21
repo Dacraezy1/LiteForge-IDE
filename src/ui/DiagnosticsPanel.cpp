@@ -39,6 +39,16 @@ void DiagnosticsPanel::clearDiagnostics() {
     m_warningCount = 0;
 }
 
+void DiagnosticsPanel::removeForFile(const QString& file) {
+    std::vector<DiagnosticItem> keep;
+    keep.reserve(m_items.size());
+    bool removed = false;
+    for (const auto& it : m_items) {
+        if (it.file == file) removed = true; else keep.push_back(it);
+    }
+    if (removed) setDiagnostics(keep);
+}
+
 void DiagnosticsPanel::addDiagnostic(DiagnosticSeverity severity, const QString& message, const QString& file, int line, int column) {
     m_items.push_back({severity, message, file, line, column});
     if (severity == DiagnosticSeverity::Error) {
@@ -53,13 +63,13 @@ void DiagnosticsPanel::addDiagnostic(DiagnosticSeverity severity, const QString&
     QString sevStr;
     QColor sevColor;
     if (severity == DiagnosticSeverity::Error) {
-        sevStr = "● Error";
+        sevStr = "Error";
         sevColor = QColor("#f87171");
     } else if (severity == DiagnosticSeverity::Warning) {
-        sevStr = "▲ Warning";
+        sevStr = "Warning";
         sevColor = QColor("#fbbf24");
     } else {
-        sevStr = "ℹ Info";
+        sevStr = "Info";
         sevColor = QColor("#38bdf8");
     }
 

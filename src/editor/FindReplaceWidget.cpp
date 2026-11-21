@@ -67,9 +67,9 @@ void FindReplaceWidget::setupUi() {
     m_matchCountLabel = new QLabel("No matches", this);
     m_matchCountLabel->setStyleSheet("color: #71717a; font-size: 11px;");
 
-    m_prevButton = new QPushButton("▲", this);
+    m_prevButton = new QPushButton("<", this);
     m_prevButton->setToolTip("Previous match (Shift+Enter)");
-    m_nextButton = new QPushButton("▼", this);
+    m_nextButton = new QPushButton(">", this);
     m_nextButton->setToolTip("Next match (Enter)");
 
     m_caseSensitiveCheck = new QCheckBox("Aa", this);
@@ -81,7 +81,7 @@ void FindReplaceWidget::setupUi() {
     m_regexCheck = new QCheckBox(".*", this);
     m_regexCheck->setToolTip("Regular Expression");
 
-    m_closeButton = new QPushButton("✕", this);
+    m_closeButton = new QPushButton("x", this);
     m_closeButton->setToolTip("Close (Esc)");
     m_closeButton->setFixedWidth(24);
 

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.dacraezy1.LiteForge</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>LiteForge IDE</name>
+  <summary>Featherweight, zero-bloat native C++ IDE</summary>
+  <description>
+    <p>LiteForge is a small, fast code editor and IDE written in C++ and Qt 6. It starts instantly, keeps memory use low by building every panel on demand, and is customisable through plain JSON files: themes, keybindings and settings.</p>
+  </description>
+  <launchable type="desktop-id">liteforge.desktop</launchable>
+  <url type="homepage">https://github.com/Dacraezy1/LiteForge-IDE</url>
+  <url type="bugtracker">https://github.com/Dacraezy1/LiteForge-IDE/issues</url>
+  <provides><binary>liteforge</binary></provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.2.0" date="2026-11-21"/>
+  </releases>
+</component>

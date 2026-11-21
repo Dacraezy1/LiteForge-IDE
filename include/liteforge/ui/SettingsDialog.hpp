@@ -40,6 +40,15 @@ private:
     QCheckBox* m_trimTrailingCheck;
 
     QComboBox* m_themeCombo;
+    QComboBox* m_densityCombo;
+    QSpinBox* m_uiFontSizeSpin;
+    QSpinBox* m_radiusSpin;
+    QLineEdit* m_accentEdit;
+    QCheckBox* m_toolbarCheck;
+    QCheckBox* m_minimapCheck;
+    QCheckBox* m_stickyCheck;
+    QSpinBox* m_autoSaveSpin;
+    QCheckBox* m_autoSaveFocusCheck;
 
     QLineEdit* m_customBuildEdit;
     QLineEdit* m_customRunEdit;

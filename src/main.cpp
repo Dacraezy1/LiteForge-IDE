@@ -3,7 +3,6 @@
 #include <QCommandLineParser>
 #include <QFileInfo>
 #include <QDir>
-#include <iostream>
 
 int main(int argc, char* argv[]) {
     // Enable High DPI pixmaps and scaling
@@ -12,7 +11,7 @@ int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
     app.setApplicationName("LiteForge");
     app.setApplicationDisplayName("LiteForge IDE");
-    app.setApplicationVersion("1.0.0");
+    app.setApplicationVersion(QStringLiteral(LITEFORGE_VERSION));
     app.setOrganizationName("LiteForge");
     app.setOrganizationDomain("liteforge.org");
 

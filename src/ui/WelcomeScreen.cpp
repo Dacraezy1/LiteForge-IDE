@@ -53,17 +53,17 @@ void WelcomeScreen::setupUi() {
     startHeader->setFont(headerFont);
     startCol->addWidget(startHeader);
 
-    auto* newFileBtn = new QPushButton("📄  New File", container);
+    auto* newFileBtn = new QPushButton("New File", container);
     newFileBtn->setStyleSheet("text-align: left; padding: 8px 12px;");
     connect(newFileBtn, &QPushButton::clicked, this, &WelcomeScreen::newFileRequested);
     startCol->addWidget(newFileBtn);
 
-    auto* openFileBtn = new QPushButton("📂  Open File...", container);
+    auto* openFileBtn = new QPushButton("Open File...", container);
     openFileBtn->setStyleSheet("text-align: left; padding: 8px 12px;");
     connect(openFileBtn, &QPushButton::clicked, this, &WelcomeScreen::openFileRequested);
     startCol->addWidget(openFileBtn);
 
-    auto* openProjBtn = new QPushButton("📁  Open Project Folder...", container);
+    auto* openProjBtn = new QPushButton("Open Project Folder...", container);
     openProjBtn->setStyleSheet("text-align: left; padding: 8px 12px;");
     connect(openProjBtn, &QPushButton::clicked, this, &WelcomeScreen::openProjectRequested);
     startCol->addWidget(openProjBtn);

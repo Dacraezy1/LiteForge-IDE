@@ -1,128 +1,203 @@
 name: Release
 
+# Push a tag like v1.2.0 to build and publish every package.
 on:
   push:
     tags:
       - 'v*'
-    branches:
-      - 'release'
-      - 'release/**'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and (re)publish, e.g. v1.2.0'
+        required: true
 
 permissions:
   contents: write
 
 jobs:
-  build-packages:
-    name: Build Packages (${{ matrix.arch }})
+  # --------------------------------------------------------------- metadata
+  meta:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - id: v
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          CMAKE_VERSION=$(sed -n 's/^ *VERSION \([0-9.]*\)$/\1/p' CMakeLists.txt | head -n1)
+          if [ "$VERSION" != "$CMAKE_VERSION" ]; then
+            echo "::error::Tag $TAG does not match CMakeLists.txt version $CMAKE_VERSION"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  # ------------------------------- x86_64 + aarch64: tar.gz, deb, AppImage
+  native:
+    name: tar.gz / deb / AppImage (${{ matrix.arch }})
+    needs: meta
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
-            arch: x86_64
-            deb_arch: amd64
-            rpm_arch: x86_64
-          - os: ubuntu-24.04-arm
-            arch: aarch64
-            deb_arch: arm64
-            rpm_arch: aarch64
-
+          - { os: ubuntu-24.04,     arch: x86_64 }
+          - { os: ubuntu-24.04-arm, arch: aarch64 }
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
 
-      - name: Install System Dependencies
+      - name: Install dependencies
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake g++ qt6-base-dev libgl1-mesa-dev rpm file patchelf
+          sudo apt-get install -y --no-install-recommends \
+            cmake g++ qt6-base-dev qt6-wayland libgl1-mesa-dev file patchelf curl ca-certificates
 
-      - name: Configure CMake
+      - name: Build
         run: |
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_STANDARD=20 \
-            -DCMAKE_INSTALL_PREFIX=/usr
-
-      - name: Build Binary
-        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCPACK_STRIP_FILES=ON
           cmake --build build --parallel $(nproc)
 
-      - name: Run Tests
-        run: |
-          ctest --test-dir build --output-on-failure
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure
 
-      - name: Build Packages with CPack
+      - name: Package (.tar.gz, .deb)
         run: |
           cd build
           cpack -G TGZ
           cpack -G DEB
-          cpack -G RPM || true
 
-      - name: Build AppImage
+      - name: AppImage
+        run: bash packaging/appimage/build-appimage.sh ${{ matrix.arch }} ${{ needs.meta.outputs.version }}
+
+      - name: Source tarball
+        if: matrix.arch == 'x86_64'
         run: |
-          bash packaging/appimage/build-appimage.sh ${{ matrix.arch }}
+          git archive --format=tar.gz --prefix=LiteForge-IDE-${{ needs.meta.outputs.version }}/ \
+            -o liteforge-${{ needs.meta.outputs.version }}-source.tar.gz HEAD
 
-      - name: Stage Artifacts
+      - name: Stage
         run: |
-          mkdir -p artifacts
-          cp -v build/*.tar.gz artifacts/ || true
-          cp -v build/*.deb artifacts/ || true
-          cp -v build/*.rpm artifacts/ || true
-          cp -v *.AppImage artifacts/ || true
-          cp -v LiteForge-*.tar.gz artifacts/ || true
-          cd artifacts
-          sha256sum * > SHA256SUMS-${{ matrix.arch }}.txt
+          V=${{ needs.meta.outputs.version }}
+          mkdir -p out
+          cp build/liteforge-*-Linux.tar.gz out/liteforge-$V-linux-${{ matrix.arch }}.tar.gz
+          cp build/liteforge_*.deb out/
+          cp LiteForge-*.AppImage out/
+          cp liteforge-*-source.tar.gz out/ 2>/dev/null || true
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: liteforge-${{ matrix.arch }}
-          path: artifacts/*
+          name: pkg-native-${{ matrix.arch }}
+          path: out/*
 
-  publish-release:
+  # --------------------------------------------- .rpm built on real Fedora
+  rpm:
+    name: rpm (${{ matrix.arch }})
+    needs: meta
+    runs-on: ${{ matrix.os }}
+    container: fedora:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04,     arch: x86_64 }
+          - { os: ubuntu-24.04-arm, arch: aarch64 }
+    steps:
+      - name: Install build tools
+        run: dnf install -y rpm-build rpmdevtools cmake gcc-c++ git tar gzip qt6-qtbase-devel mesa-libGL-devel
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+
+      - name: Build RPM
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          V=${{ needs.meta.outputs.version }}
+          mkdir -p ~/rpmbuild/SOURCES
+          git archive --format=tar.gz --prefix=LiteForge-IDE-$V/ \
+            -o ~/rpmbuild/SOURCES/LiteForge-IDE-$V.tar.gz HEAD
+          rpmbuild -ba packaging/rpm/liteforge.spec
+          mkdir -p out
+          cp ~/rpmbuild/RPMS/*/*.rpm out/
+          cp ~/rpmbuild/SRPMS/*.src.rpm out/ || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-rpm-${{ matrix.arch }}
+          path: out/*
+
+  # -------------- armv7 / riscv64 / ppc64le / s390x under QEMU (best effort)
+  emulated:
+    name: tar.gz / deb (${{ matrix.arch }}, QEMU)
+    needs: meta
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    continue-on-error: true     # a flaky emulated arch never blocks the release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: armv7,   platform: linux/arm/v7,  appimage: armhf }
+          - { arch: riscv64, platform: linux/riscv64, appimage: '' }
+          - { arch: ppc64le, platform: linux/ppc64le, appimage: '' }
+          - { arch: s390x,   platform: linux/s390x,   appimage: '' }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+
+      - uses: docker/setup-qemu-action@v3
+
+      - name: Build inside ${{ matrix.platform }} container
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} -v "$PWD":/src ubuntu:24.04 \
+            bash /src/packaging/ci/build-in-ubuntu.sh ${{ matrix.arch }} ${{ needs.meta.outputs.version }} ${{ matrix.appimage }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-emulated-${{ matrix.arch }}
+          path: out/*
+
+  # ----------------------------------------------------------- publish
+  publish:
     name: Publish GitHub Release
-    needs: build-packages
+    needs: [meta, native, rpm, emulated]
+    # Publish as long as the guaranteed jobs passed; emulated archs are best-effort.
+    if: ${{ !cancelled() && needs.native.result == 'success' && needs.rpm.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Determine Release Tag
-        id: release_info
-        run: |
-          VERSION=$(grep -m1 "VERSION" CMakeLists.txt | awk '{print $2}')
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            TAG="${{ github.ref_name }}"
-          else
-            TAG="v${VERSION}"
-          fi
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          path: release-files
+          ref: ${{ needs.meta.outputs.tag }}
 
-      - name: Flatten Files
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
         run: |
-          mkdir -p dist
-          find release-files -type f -exec mv -v {} dist/ \;
           cd dist
-          cat SHA256SUMS-*.txt > SHA256SUMS.txt
-          rm -f SHA256SUMS-*.txt
+          sha256sum * > SHA256SUMS.txt
           ls -la
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.release_info.outputs.tag }}
-          name: "LiteForge ${{ steps.release_info.outputs.tag }} - Featherweight Native C++ IDE"
+          tag_name: ${{ needs.meta.outputs.tag }}
+          name: "LiteForge ${{ needs.meta.outputs.tag }}"
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: false
           files: dist/*
-          generate_release_notes: true
-          draft: false
-          prerelease: false
+          fail_on_unmatched_files: true

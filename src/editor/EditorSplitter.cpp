@@ -25,6 +25,8 @@ void EditorSplitter::setupPaneConnections(TabManager* tm) {
     });
 
     connect(tm, &TabManager::fileOpened, this, &EditorSplitter::fileOpened);
+    connect(tm, &TabManager::fileSaved, this, &EditorSplitter::fileSaved);
+    connect(tm, &TabManager::documentEdited, this, &EditorSplitter::documentEdited);
 
     connect(tm, &TabManager::splitRequested, this, [this](Qt::Orientation ori) {
         split(ori);
@@ -53,6 +55,11 @@ CodeEditor* EditorSplitter::newUntitledDocument() {
 
 CodeEditor* EditorSplitter::currentEditor() const {
     return activeTabManager()->currentEditor();
+}
+
+CodeEditor* EditorSplitter::editorForPath(const QString& path) const {
+    if (auto* e = m_primaryTabManager->editorForPath(path)) return e;
+    return m_secondaryTabManager ? m_secondaryTabManager->editorForPath(path) : nullptr;
 }
 
 TabManager* EditorSplitter::activeTabManager() const {
@@ -93,6 +100,25 @@ void EditorSplitter::unsplit() {
 
 bool EditorSplitter::saveCurrentFile() {
     return activeTabManager()->saveCurrentFile();
+}
+
+bool EditorSplitter::saveCurrentFileAs() {
+    return activeTabManager()->saveCurrentFileAs();
+}
+
+int EditorSplitter::autoSaveModified() {
+    return m_primaryTabManager->autoSaveModified() +
+           (m_secondaryTabManager ? m_secondaryTabManager->autoSaveModified() : 0);
+}
+
+void EditorSplitter::checkExternalChanges() {
+    m_primaryTabManager->checkExternalChanges();
+    if (m_secondaryTabManager) m_secondaryTabManager->checkExternalChanges();
+}
+
+void EditorSplitter::refreshEditorSettings() {
+    m_primaryTabManager->refreshEditorSettings();
+    if (m_secondaryTabManager) m_secondaryTabManager->refreshEditorSettings();
 }
 
 bool EditorSplitter::saveAllFiles() {
