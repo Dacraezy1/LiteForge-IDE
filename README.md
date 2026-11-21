@@ -10,6 +10,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue.svg?style=flat-square" alt="GPLv3"></a>
 </p>
 
+![LiteForge IDE](docs/screenshots/main.png)
+
 ## Why
 
 No Electron, no JavaScript runtime, no telemetry, no plugin host. One native binary (about 0.9 MB stripped) that links Qt 6 Widgets and nothing else.
